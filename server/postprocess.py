@@ -285,6 +285,34 @@ def derive_hint_logic(bible: GameBible) -> bool:
 
 def repair_bible(bible: GameBible) -> GameBible:
     """Programmatic fixes for constraint violations that shouldn't kill a run."""
+    # A playable sub-room always belongs to exactly one NPC. Models sometimes
+    # mark an extra flavor location as enterable; room generation then fails
+    # because there is no character to place inside it.
+    npc_ids = {npc.id for npc in bible.npcs}
+    assigned_npcs: set[str] = set()
+    valid_room_ids: set[str] = set()
+    for building in bible.buildings:
+        if building.npcId in npc_ids and building.npcId not in assigned_npcs:
+            building.isEnterable = True
+            assigned_npcs.add(building.npcId)  # type: ignore[arg-type]
+            valid_room_ids.add(building.id)
+        else:
+            if building.isEnterable:
+                print(f"[bible] {building.id} had no unique NPC -> changed to look-only landmark")
+            building.isEnterable = False
+            if building.npcId not in npc_ids:
+                building.npcId = None
+
+    # If the model forgot to connect an NPC, reuse a flavor building rather
+    # than shipping an NPC with no room.
+    missing_npcs = [npc.id for npc in bible.npcs if npc.id not in assigned_npcs]
+    spare_buildings = [building for building in bible.buildings if building.id not in valid_room_ids]
+    for npc_id, building in zip(missing_npcs, spare_buildings):
+        building.npcId = npc_id
+        building.isEnterable = True
+        valid_room_ids.add(building.id)
+        print(f"[bible] connected missing NPC {npc_id} to room {building.id}")
+
     building_ids = {b.id for b in bible.buildings}
     if bible.finalLocationBuildingId not in building_ids:
         flavor = [b for b in bible.buildings if not b.isEnterable]

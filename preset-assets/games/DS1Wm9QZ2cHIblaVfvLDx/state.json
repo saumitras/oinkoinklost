@@ -196,17 +196,6 @@
           "direction": "near the south path",
           "object": "with a bell by the step"
         }
-      },
-      {
-        "id": "b5",
-        "name": "Seabreeze Market",
-        "emoji": "\ud83e\uddfa",
-        "description": "A lively market with fruit baskets and striped cloth.",
-        "clueFacts": {
-          "attribute": "that smells like warm bread",
-          "direction": "by the west lane",
-          "object": "with fruit baskets"
-        }
       }
     ],
     "finalLocationId": "b2",

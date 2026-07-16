@@ -7,6 +7,7 @@ const STAGE_COPY: Record<string, string> = {
   outline: '🖊️ Tracing the paths…',
   hotspots: '🗺️ Finding the walkways…',
   character: '🐷 Dressing up Piglet…',
+  npc_openers: '💬 Rehearsing hellos…',
   rooms: '🏠 Decorating the houses…',
   tts: '🎙️ Warming up voices…',
 }

@@ -11,16 +11,23 @@ from google.genai import types as genai_types
 
 from server.config import OPENAI_API_KEY, GEMINI_API_KEY, TEXT_MODEL, NPC_MODEL, IMAGE_MODEL, TTS_MODEL, MODERATION_MODEL
 from server.cache import cache_get_bytes, cache_set_bytes, cache_get_json, cache_set_json
-from server.schema import GameBible, ScreenAnnotation, RoomAnnotation, NPCModelReply
+from server.schema import GameBible, ScreenAnnotation, RoomAnnotation, NPCModelReply, NPC, SuggestedReply
 from server.schema_utils import make_strict_schema
 
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
-STYLE_BLOCK = (
+COZY_STYLE_BLOCK = (
     "STYLE: Cozy children's storybook watercolor illustration. Soft pastel palette, "
     "warm sunlight, thick clean outlines, chunky rounded shapes, flat colors with gentle texture. "
     "Cheerful and bright, absolutely nothing scary or dark. No text, no letters, no words in the image."
+)
+
+THEME_STYLE_BASE = (
+    "STYLE: Polished hand-painted children's storybook illustration with clear silhouettes, "
+    "coherent perspective, tactile texture, and a palette and lighting scheme that strongly match "
+    "the requested world. Mystery and gentle spookiness are allowed when the theme calls for them, "
+    "but no gore, injury, realistic horror, or threatening characters. No text, letters, or words."
 )
 
 NPC_VOICES = ["alloy", "echo", "fable"]
@@ -29,6 +36,69 @@ NARRATOR_VOICE = "nova"
 
 def npc_voice(index: int) -> str:
     return NPC_VOICES[index % len(NPC_VOICES)]
+
+
+ANIMAL_SOUNDS = {
+    "bat": "Eek",
+    "cat": "Meow",
+    "chicken": "Cluck",
+    "cow": "Moo",
+    "dinosaur": "Roar",
+    "dog": "Woof",
+    "duck": "Quack",
+    "elephant": "Trumpet",
+    "fox": "Yip",
+    "frog": "Ribbit",
+    "goat": "Baa",
+    "horse": "Neigh",
+    "mouse": "Squeak",
+    "otter": "Chirp",
+    "owl": "Hoo",
+    "pig": "Oink",
+    "rabbit": "Sniff-sniff",
+    "seagull": "Kree",
+    "sheep": "Baa",
+}
+
+
+def build_npc_opener(npc: NPC, bible: GameBible | None = None) -> NPCModelReply:
+    """Build the first turn without an interaction-time model call."""
+    profile = npc.conversation
+    sound = (profile.animalSound or ANIMAL_SOUNDS.get(npc.species.casefold(), "Hello")).strip(" .!?-")
+    greeting = npc.lines.greeting.strip()
+    if greeting.casefold().startswith(sound.casefold()):
+        reply = greeting
+    elif greeting.casefold().startswith(("hello", "hiya", "hi ")):
+        reply = f"{sound}-{greeting[0].lower()}{greeting[1:]}"
+    else:
+        reply = f"{sound}! {greeting}"
+
+    topic = profile.favoriteTopic
+    if topic == "the cozy world around them" and bible:
+        building = next((building for building in bible.buildings if building.npcId == npc.id), None)
+        topic = f"the {building.name}" if building else bible.setting.name
+    choices = profile.openingChoices or [
+        "Have you seen Mama?",
+        f"Tell me about {topic}.",
+        "What do you like to do here?",
+    ]
+    suggestions = []
+    seen_suggestions: set[str] = set()
+    for choice in choices[:3]:
+        normalized = choice.casefold()
+        intent = "ask_mama" if any(word in normalized for word in ("mama", "mother", "clue", "help")) else "small_talk"
+        text = "Have you seen my Mama?" if intent == "ask_mama" else choice
+        key = f"{intent}:{text.casefold()}"
+        if key in seen_suggestions:
+            continue
+        seen_suggestions.add(key)
+        suggestions.append(SuggestedReply(text=text, intent=intent))
+    return NPCModelReply(
+        reply=reply,
+        suggestedReplies=suggestions,
+        mood="cheerful",
+        conversationComplete=False,
+    )
 
 
 async def _with_retry(fn, attempts: int = 2, backoff: float = 2.0):
@@ -50,16 +120,30 @@ BIBLE_SYSTEM = """You are the game designer for "Oink Oink Lost", a cozy mystery
 A baby pig named Piglet is gently lost and must find Mama Pig by collecting hints from three friendly animal neighbors.
 
 Hard rules:
-- Tone: warm, cozy, gently funny. ZERO peril. Mama is never in danger.
-- No villains, no scary places, no darkness, no injuries.
+- Story tone: warm, gently funny, and ZERO peril. Mama is never in danger.
+- Visual atmosphere should strongly follow the user's idea. Gothic, dark, mysterious,
+  moonlit, or gently spooky visuals are allowed when thematically appropriate, but no
+  gore, injuries, realistic horror, or threatening characters.
 - Reading level: age 5–8. Dialogue lines are at most 2 short sentences.
 - Give every NPC a conversation profile: a distinctive speechStyle, favoriteTopic,
-  2-3 smallTalkFacts grounded in the setting, 3 short openingChoices, and a clueLeadIn.
-- Exactly 3 neighbors, 3 hints, 3 enterable buildings, 2–4 flavor buildings,
+  2-3 smallTalkFacts grounded in the setting, 3 short openingChoices, a clueLeadIn,
+  and the natural written animalSound for its species (for example Baa, Moo, Quack, or Hoo).
+- Exactly 3 neighbors, 3 hints, 3 enterable buildings, 2–4 flavor buildings.
+  Each enterable building has exactly one NPC via npcId; flavor buildings have npcId null
+  and isEnterable false. Never create an enterable room without an NPC.
   4 candidate locations for Mama (one of which is the true finalLocation).
 - Every candidateLocation id MUST be the id of one of the buildings in the scene,
   and finalLocationBuildingId MUST equal finalLocationId (Mama is at a real building
   the player can walk to).
+- Always produce visualDirection. Choose outdoor_hub for villages/farms/open worlds,
+  interior_hub when the requested adventure is principally inside one place (castle,
+  spaceship, mansion, museum), or mixed_hub only when both are essential.
+- visualDirection must be concrete and theme-specific: architecture, 3-6 palette colors,
+  lighting, atmosphere, walkableSurface, imageStyle, and explicit visual elements to avoid.
+  For an interior hub, buildings represent distinct rooms, wings, alcoves, or doorways
+  arranged around one connected central floor. Their exteriorDescription describes the
+  entrance visible from that hub. Do not fall back to grass, sunshine, or a village unless
+  the user's idea actually calls for those things.
 
 Hint design — TRIANGULATION (follow this procedure exactly):
 Step 1: For EVERY candidateLocation, fill clueFacts with three short clauses:
@@ -88,10 +172,16 @@ that question has exactly one answer. Never use another language unless the user
 world idea is written in that language."""
 
 
-async def generate_bible(idea: str, correction: str = "") -> GameBible:
+async def generate_bible(idea: str, correction: str = "", cozy_visuals: bool = False) -> GameBible:
     # Cache key includes the system prompt so prompt iterations invalidate stale bibles
-    sys_hash = hashlib.sha256(BIBLE_SYSTEM.encode()).hexdigest()[:8]
-    payload = f"{sys_hash}|{idea}|{correction}"
+    visual_mode = (
+        "VISUAL MODE OVERRIDE: Use soft pastels, warm sunlight, cheerful bright colors, and nothing dark or scary."
+        if cozy_visuals
+        else "VISUAL MODE: Match the visual mood of the user's idea; do not automatically make it sunny, pastel, green, or outdoors."
+    )
+    instructions = f"{BIBLE_SYSTEM}\n\n{visual_mode}"
+    sys_hash = hashlib.sha256(instructions.encode()).hexdigest()[:8]
+    payload = f"{sys_hash}|{idea}|{correction}|cozy:{cozy_visuals}"
     cached = cache_get_json("bible", payload)
     if cached:
         return GameBible.model_validate(cached)
@@ -103,7 +193,7 @@ async def generate_bible(idea: str, correction: str = "") -> GameBible:
     async def call():
         return await openai_client.responses.parse(
             model=TEXT_MODEL,
-            instructions=BIBLE_SYSTEM,
+            instructions=instructions,
             input=user_msg,
             text={"format": {"type": "json_schema", "name": "game_bible", "schema": make_strict_schema(GameBible.model_json_schema()), "strict": True}},
         )
@@ -188,6 +278,18 @@ Conversation rules:
     response = await _with_retry(call)
     result = NPCModelReply.model_validate_json(response.output_text)
 
+    unique_suggestions: list[SuggestedReply] = []
+    seen_suggestions: set[str] = set()
+    for suggestion in result.suggestedReplies:
+        if suggestion.intent == "ask_mama":
+            suggestion.text = "Have you seen my Mama?"
+        key = f"{suggestion.intent}:{suggestion.text.casefold()}"
+        if key in seen_suggestions:
+            continue
+        seen_suggestions.add(key)
+        unique_suggestions.append(suggestion)
+    result.suggestedReplies = unique_suggestions
+
     # The clue text is game state, not model state. Guarantee the player hears
     # the verified canonical sentence even if the model tried to paraphrase it.
     if must_reveal_hint and hint.text not in result.reply:
@@ -196,27 +298,37 @@ Conversation rules:
 
 
 async def extract_hotspots(bible: GameBible, street_b64: str, outline_b64: str, correction: str = "") -> ScreenAnnotation:
-    building_list = "\n".join(
-        f'- id "{b.id}": {b.exteriorDescription}{"  [has a door the player can enter]" if b.isEnterable else ""}'
-        for b in bible.buildings
+    room_list = "\n".join(
+        f'- id "{b.id}" ({b.name}): {b.exteriorDescription}'
+        for b in bible.buildings if b.isEnterable
     )
+    landmark_list = "\n".join(
+        f'- id "{b.id}" ({b.name}): {b.exteriorDescription}'
+        for b in bible.buildings if not b.isEnterable
+    )
+    direction = bible.visualDirection
+    walkable_surface = direction.walkableSurface if direction else "paths, floors, grass, or open ground"
     prompt = f"""You are annotating a top-down game map. Image 1 is the playable scene. Image 2 is the same scene with magenta outlines around objects and green dots on doors.
 The image is 1024x1024 pixels. Coordinate system: x 0-1024 left→right, y 0-1024 top→bottom.
 
-Buildings in the scene:
-{building_list}
+ENTERABLE SUB-ROOMS — locate the center of the actual doorway:
+{room_list}
+
+LOOK-ONLY LANDMARKS — locate the center of the described object or feature, not a nearby door:
+{landmark_list}
 
 Tasks:
 1. WALKABILITY GRID: Divide the image into a 16x16 grid (each cell 64x64 px).
-   For each cell output '1' if a small character can walk there (path, street, grass, open ground)
-   or '0' if blocked (building, tree, crops, water, fences, large objects).
-   Buildings and planted fields are ALWAYS '0'. Open paths are ALWAYS '1'.
+   For each cell output '1' if a small character can walk there ({walkable_surface})
+   or '0' if blocked (walls, buildings, furniture, trees, crops, water, fences, large objects).
+   Solid structures and large objects are ALWAYS '0'. Open floors, corridors, and routes are ALWAYS '1'.
    A correct scene has a healthy mix of both — typically 40-75% walkable.
    Output exactly 16 strings of 16 characters, top row first.
-2. DOORS: For EVERY building id listed above (including ones without enterable doors),
-   give the entrance position: center x,y in pixels and its grid cell (col = x//64, row = y//64).
-   The entrance is where a character standing on the path would enter — usually the door
-   at the bottom/front of the building.
+2. INTERACTION POINTS: Return one entry in doors for EVERY id above.
+   - For an ENTERABLE SUB-ROOM, use the center of its real, visibly reachable door.
+     Match the visual details carefully; never substitute a window, bookcase, wall, or unrelated door.
+   - For a LOOK-ONLY LANDMARK, use the center of that landmark itself.
+   The grid cell is col = x//64, row = y//64. Pick a point reachable from open floor/path.
 3. SPAWN: One walkable cell on open path near the center of the map, not adjacent to a door.
 Be precise. If a cell is partly path and partly object edge, or you are unsure, mark it '1'
 (walkable) — blocking open ground feels like an invisible wall and is the worst failure."""
@@ -279,6 +391,22 @@ async def extract_room_annotation(room_b64: str) -> RoomAnnotation:
 
 # ── Image generation (Nano Banana) ────────────────────────────────────────────
 
+def _visual_style(bible: GameBible, cozy_visuals: bool = False) -> str:
+    if cozy_visuals:
+        return COZY_STYLE_BLOCK
+    direction = bible.visualDirection
+    if not direction:
+        return THEME_STYLE_BASE
+    avoid = ", ".join(direction.avoid) or "unrelated scenery and generic visual themes"
+    return f"""{THEME_STYLE_BASE}
+VISUAL DIRECTION:
+- Architecture: {direction.architecture}
+- Palette: {', '.join(direction.palette)}
+- Lighting: {direction.lighting}
+- Atmosphere: {direction.atmosphere}
+- Medium: {direction.imageStyle}
+- Avoid: {avoid}"""
+
 def _extract_image_bytes(response) -> bytes:
     for part in response.candidates[0].content.parts:
         if part.inline_data:
@@ -311,17 +439,47 @@ async def _generate_image(prompt: str, reference_png: bytes | None = None) -> by
     return data
 
 
-async def generate_street_scene(bible: GameBible) -> bytes:
-    building_list = "\n".join(f"- {b.exteriorDescription} ({b.sizeHint})" for b in bible.buildings)
-    prompt = f"""{STYLE_BLOCK}
+async def generate_street_scene(bible: GameBible, cozy_visuals: bool = False) -> bytes:
+    room_list = "\n".join(
+        f"- {b.name}: {b.exteriorDescription} ({b.sizeHint})"
+        for b in bible.buildings if b.isEnterable
+    )
+    landmark_list = "\n".join(
+        f"- {b.name}: {b.exteriorDescription} ({b.sizeHint})"
+        for b in bible.buildings if not b.isEnterable
+    )
+    direction = bible.visualDirection
+    layout = direction.layout if direction else "outdoor_hub"
+    surface = direction.walkableSurface if direction else "open paths and ground"
+    if layout == "interior_hub":
+        layout_instruction = (
+            "A single connected INTERIOR hub viewed from directly overhead: a large central floor with "
+            "exactly THREE large, distinct, visibly usable sub-room doors arranged around it. Each door must "
+            "look unmistakably different and match one of the three ENTERABLE SUB-ROOM descriptions below. "
+            "Do not merge a requested doorway into a window, bookcase, wall decoration, or painted backdrop. "
+            "All three doors have open floor directly in front of them. The complete image is inside the "
+            "structure. No outdoor terrain, lawn, village map, or exterior establishing shot."
+        )
+    elif layout == "mixed_hub":
+        layout_instruction = (
+            "A connected overhead hub combining a dominant interior floor with a small, clearly connected courtyard."
+        )
+    else:
+        layout_instruction = "A connected outdoor overhead hub with landmarks arranged around open walkable routes."
 
-Top-down (bird's-eye, directly overhead) view of {bible.setting.name}: {bible.setting.description}
+    prompt = f"""{_visual_style(bible, cozy_visuals)}
 
-The scene must contain, clearly separated and fully visible:
-{building_list}
+Top-down (bird's-eye, directly overhead) playable view of {bible.setting.name}: {bible.setting.description}
+LAYOUT: {layout_instruction}
 
-Every building's entrance/door faces the path so a character walking on the path can reach it.
-Wide open walkable ground between buildings — at least a third of the image is open path/grass.
+ENTERABLE SUB-ROOMS — give each one a prominent, separate, reachable door:
+{room_list}
+
+LOOK-ONLY LANDMARKS — depict these as objects or architectural features, NOT as additional doors:
+{landmark_list}
+
+Every sub-room door faces the open floor/path so a character can reach it.
+At least a third of the image is open, unobstructed walkable space made of {surface}.
 Decorations: {', '.join(bible.setting.decorations)}.
 No characters or animals. No text."""
     return await _generate_image(prompt)
@@ -379,9 +537,9 @@ def _chroma_key(png_bytes: bytes) -> bytes:
     return buf.getvalue()
 
 
-async def generate_character_sprites(bible: GameBible) -> tuple[bytes, bytes]:
+async def generate_character_sprites(bible: GameBible, cozy_visuals: bool = False) -> tuple[bytes, bytes]:
     base = (
-        f"{STYLE_BLOCK}\nCute baby pig character sprite for a children's game, {bible.player.description}, "
+        f"{_visual_style(bible, cozy_visuals)}\nCute baby pig character sprite for a children's game, {bible.player.description}, "
         f"wearing {bible.player.accessory}. Full body."
     )
     front_raw, side_raw = await asyncio.gather(
@@ -391,10 +549,10 @@ async def generate_character_sprites(bible: GameBible) -> tuple[bytes, bytes]:
     return _chroma_key(front_raw), _chroma_key(side_raw)
 
 
-async def generate_room_image(bible: GameBible, building_id: str) -> bytes:
+async def generate_room_image(bible: GameBible, building_id: str, cozy_visuals: bool = False) -> bytes:
     building = next(b for b in bible.buildings if b.id == building_id)
     npc = next(n for n in bible.npcs if n.id == building.npcId)
-    prompt = f"""{STYLE_BLOCK}
+    prompt = f"""{_visual_style(bible, cozy_visuals)}
 Interior of {building.interiorDescription}, dollhouse front view. Single cozy room.
 {npc.name} the {npc.species} ({npc.appearance}) stands on the {npc.roomPosition} side of the room,
 full body visible, standing on the floor (lower half of the image).
@@ -403,8 +561,8 @@ A door/exit is visible at the bottom edge. No text."""
     return await _generate_image(prompt)
 
 
-async def generate_reunion_photo(bible: GameBible) -> bytes:
-    prompt = f"""{STYLE_BLOCK}
+async def generate_reunion_photo(bible: GameBible, cozy_visuals: bool = False) -> bytes:
+    prompt = f"""{_visual_style(bible, cozy_visuals)}
 Heartwarming reunion: baby pig (Piglet, {bible.player.description}) running joyfully toward Mama Pig at {bible.setting.name}.
 Both pigs smiling, warm golden light. Cozy and sweet. No text."""
     return await _generate_image(prompt)

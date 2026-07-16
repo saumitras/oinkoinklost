@@ -16,6 +16,7 @@ export function unlockAudio() {
 
 export async function playAudio(url: string): Promise<void> {
   if (!ctx) return
+  window.speechSynthesis?.cancel()
   currentSource?.stop()
   currentSource = null
 
@@ -54,13 +55,24 @@ export function isMuted() {
 
 // Short, no-cost narration for player-triggered object descriptions. This uses
 // the browser's local speech voice, so looking at scenery never calls an API.
-export function speakText(text: string) {
-  if (muted || !('speechSynthesis' in window)) return
+export function speakText(text: string): Promise<void> {
+  if (muted || !('speechSynthesis' in window)) return Promise.resolve()
   window.speechSynthesis.cancel()
   const utterance = new SpeechSynthesisUtterance(text)
   utterance.rate = 0.92
   utterance.pitch = 1.08
-  window.speechSynthesis.speak(utterance)
+  return new Promise(resolve => {
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      resolve()
+    }
+    utterance.onend = finish
+    utterance.onerror = finish
+    window.setTimeout(finish, Math.max(1200, Math.min(7000, text.length * 75)))
+    window.speechSynthesis.speak(utterance)
+  })
 }
 
 // Soft trotting footstep, synthesized (no asset file needed): a tiny filtered

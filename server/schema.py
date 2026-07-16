@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Literal, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class NPCConversation(BaseModel):
@@ -9,6 +9,7 @@ class NPCConversation(BaseModel):
     smallTalkFacts: list[str] = []
     openingChoices: list[str] = []
     clueLeadIn: str = "I did notice something that may help."
+    animalSound: str = ""
 
 
 class NPC(BaseModel):
@@ -77,19 +78,31 @@ class Player(BaseModel):
     accessory: str
 
 
+class VisualDirection(BaseModel):
+    layout: Literal["outdoor_hub", "interior_hub", "mixed_hub"] = "outdoor_hub"
+    architecture: str = "storybook village"
+    palette: list[str] = Field(default=["warm earth tones", "soft greens"], min_length=2, max_length=6)
+    lighting: str = "soft daylight"
+    atmosphere: str = "welcoming and playful"
+    walkableSurface: str = "open paths and grass"
+    imageStyle: str = "hand-painted children's storybook illustration"
+    avoid: list[str] = []
+
+
 class GameBible(BaseModel):
     title: str
     setting: Setting
     player: Player
     narratorIntro: str
-    buildings: list[Building]
-    npcs: list[NPC]
-    hints: list[Hint]
-    candidateLocations: list[CandidateLocation]
+    buildings: list[Building] = Field(min_length=5, max_length=7)
+    npcs: list[NPC] = Field(min_length=3, max_length=3)
+    hints: list[Hint] = Field(min_length=3, max_length=3)
+    candidateLocations: list[CandidateLocation] = Field(min_length=4, max_length=4)
     finalLocationId: str
     finalLocationBuildingId: str
     reunionLine: str
     verification: str
+    visualDirection: Optional[VisualDirection] = None
 
 
 class DoorCell(BaseModel):
@@ -144,6 +157,10 @@ class NPCModelReply(BaseModel):
     conversationComplete: bool
 
 
+class PreloadedNPCReply(NPCModelReply):
+    audioUrl: Optional[str] = None
+
+
 class RoomAssets(BaseModel):
     imageUrl: Optional[str] = None
     annotation: Optional[RoomAnnotation] = None
@@ -156,6 +173,7 @@ class GameAssets(BaseModel):
     characterSideUrl: Optional[str] = None
     rooms: dict[str, RoomAssets] = {}
     audio: dict[str, str] = {}
+    npcOpeners: dict[str, PreloadedNPCReply] = {}
     reunionPhotoUrl: Optional[str] = None
 
 
@@ -172,3 +190,4 @@ class Game(BaseModel):
     assets: GameAssets = GameAssets()
     annotation: Optional[ScreenAnnotation] = None
     fromWarmPool: bool = False
+    cozyVisuals: bool = False

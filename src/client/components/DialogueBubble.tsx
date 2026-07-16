@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import type { NPC, NPCChatResponse, SuggestedNPCReply } from '@shared/schema'
-import { playAudio, stopAudio } from '../game/audio'
+import type { NPC, NPCChatResponse, PreloadedNPCReply, SuggestedNPCReply } from '@shared/schema'
+import { playAudio, speakText, stopAudio } from '../game/audio'
 
 interface Props {
   gameId: string
   npc: NPC
   sessionId: string
+  preloadedOpener?: PreloadedNPCReply
   hintAlreadyCollected: boolean
   onClueGranted: (hintId: string) => void
   onClose: () => void
@@ -28,17 +29,21 @@ export function DialogueBubble({
   gameId,
   npc,
   sessionId,
+  preloadedOpener,
   hintAlreadyCollected,
   onClueGranted,
   onClose,
 }: Props) {
-  const [history, setHistory] = useState<ChatLine[]>([])
-  const [suggestions, setSuggestions] = useState<SuggestedNPCReply[]>([])
-  const [mood, setMood] = useState<NPCChatResponse['mood']>('cheerful')
+  const [history, setHistory] = useState<ChatLine[]>(preloadedOpener
+    ? [{ speaker: npc.name, text: preloadedOpener.reply }]
+    : [])
+  const [suggestions, setSuggestions] = useState<SuggestedNPCReply[]>(preloadedOpener?.suggestedReplies ?? [])
+  const [mood, setMood] = useState<NPCChatResponse['mood']>(preloadedOpener?.mood ?? 'cheerful')
   const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!preloadedOpener)
   const [error, setError] = useState('')
-  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [audioUrl, setAudioUrl] = useState<string | null>(preloadedOpener?.audioUrl ?? null)
+  const [viewMode, setViewMode] = useState<'glass' | 'compact'>('glass')
   const started = useRef(false)
   const knowsHint = useRef(hintAlreadyCollected)
   const transcriptRef = useRef<HTMLDivElement>(null)
@@ -47,6 +52,7 @@ export function DialogueBubble({
     message: string,
     source: 'start' | 'suggestion' | 'typed',
     intent?: SuggestedNPCReply['intent'],
+    waitForPlayerSpeech?: Promise<void>,
   ) {
     setLoading(true)
     setError('')
@@ -71,7 +77,9 @@ export function DialogueBubble({
       setSuggestions(turn.suggestedReplies)
       setMood(turn.mood)
       setAudioUrl(turn.audioUrl ?? null)
-      if (turn.audioUrl) playAudio(turn.audioUrl).catch(() => {})
+      await waitForPlayerSpeech
+      if (turn.audioUrl) playAudio(turn.audioUrl).catch(() => speakText(turn.reply))
+      else speakText(turn.reply)
       if (turn.clueGranted && turn.hintId && !knowsHint.current) {
         knowsHint.current = true
         onClueGranted(turn.hintId)
@@ -90,6 +98,14 @@ export function DialogueBubble({
   useEffect(() => {
     if (started.current) return
     started.current = true
+    if (preloadedOpener) {
+      if (preloadedOpener.audioUrl) {
+        playAudio(preloadedOpener.audioUrl).catch(() => speakText(preloadedOpener.reply))
+      } else {
+        speakText(preloadedOpener.reply)
+      }
+      return
+    }
     requestTurn('', 'start')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -111,7 +127,9 @@ export function DialogueBubble({
       onClose()
       return
     }
-    requestTurn(suggestion.text, 'suggestion', suggestion.intent)
+    stopAudio()
+    const playerSpeech = speakText(suggestion.text)
+    requestTurn(suggestion.text, 'suggestion', suggestion.intent, playerSpeech)
   }
 
   function submit(event: React.FormEvent) {
@@ -127,9 +145,24 @@ export function DialogueBubble({
     onClose()
   }
 
+  const seenSuggestions = new Set<string>()
+  const normalizedSuggestions = suggestions
+    .map(suggestion => suggestion.intent === 'ask_mama'
+      ? { ...suggestion, text: 'Have you seen my Mama?' }
+      : suggestion)
+    .filter(suggestion => {
+      const key = `${suggestion.intent}:${suggestion.text}`
+      if (seenSuggestions.has(key)) return false
+      seenSuggestions.add(key)
+      return true
+    })
+  const chatOptions = normalizedSuggestions.some(suggestion => suggestion.intent === 'goodbye')
+    ? normalizedSuggestions
+    : [...normalizedSuggestions, { text: 'Leave conversation', intent: 'goodbye' as const }]
+
   return (
     <div style={styles.overlay} role="dialog" aria-label={`Talking to ${npc.name}`}>
-      <div style={styles.panel}>
+      <div style={{ ...styles.panel, ...(viewMode === 'compact' ? styles.panelCompact : {}) }}>
         <div style={styles.header}>
           <div style={styles.identity}>
             <div style={styles.portrait} aria-hidden="true">{moodEmoji[mood]}</div>
@@ -139,6 +172,12 @@ export function DialogueBubble({
             </div>
           </div>
           <div style={styles.headerActions}>
+            <button
+              style={styles.viewBtn}
+              onClick={() => setViewMode(mode => mode === 'glass' ? 'compact' : 'glass')}
+              aria-label={viewMode === 'glass' ? 'Use compact dialogue view' : 'Use glass dialogue view'}
+              title="Change dialogue panel size"
+            >{viewMode === 'glass' ? '▱ Compact' : '◫ Glass'}</button>
             <button
               style={styles.iconBtn}
               onClick={() => audioUrl && playAudio(audioUrl).catch(() => {})}
@@ -170,12 +209,13 @@ export function DialogueBubble({
         {error && <div style={styles.error}>{error}</div>}
 
         <div style={styles.suggestions}>
-          {suggestions.map((suggestion, index) => (
+          {chatOptions.map((suggestion, index) => (
             <button
               key={`${suggestion.text}-${index}`}
               style={{
                 ...styles.suggestionBtn,
                 ...(suggestion.intent === 'ask_mama' ? styles.keySuggestionBtn : {}),
+                ...(suggestion.intent === 'goodbye' ? styles.leaveSuggestionBtn : {}),
               }}
               onClick={() => choose(suggestion)}
               disabled={loading}
@@ -207,16 +247,17 @@ export function DialogueBubble({
 const styles: Record<string, React.CSSProperties> = {
   overlay: {
     position: 'absolute', inset: 0, zIndex: 22, display: 'flex', alignItems: 'flex-end',
-    justifyContent: 'center', padding: '20px clamp(14px, 3vw, 30px) 28px', pointerEvents: 'none',
-    background: 'linear-gradient(to top, rgba(35,24,18,0.62), transparent 58%)',
+    justifyContent: 'center', padding: '20px clamp(14px, 3vw, 30px) 22px', pointerEvents: 'none',
+    background: 'linear-gradient(to top, rgba(35,24,18,0.16), transparent 48%)',
   },
   panel: {
-    pointerEvents: 'auto', background: 'rgba(255,253,249,0.98)', borderRadius: 22,
-    padding: '18px 20px 20px', maxWidth: 760, width: 'min(760px, 96vw)',
+    pointerEvents: 'auto', background: 'rgba(255,253,249,0.48)', borderRadius: 20,
+    padding: '14px 18px 16px', maxWidth: 820, width: 'min(820px, 96vw)',
     boxShadow: '0 12px 40px rgba(32,20,12,0.34)', border: '2px solid rgba(240,208,192,0.9)',
-    maxHeight: '72vh', display: 'flex', flexDirection: 'column', gap: 12,
-    backdropFilter: 'blur(12px)',
+    maxHeight: '56vh', display: 'flex', flexDirection: 'column', gap: 9,
+    backdropFilter: 'blur(7px) saturate(1.08)',
   },
+  panelCompact: { maxHeight: '42vh', padding: '10px 14px 12px', gap: 6, background: 'rgba(255,253,249,0.38)' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   identity: { display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 },
   portrait: {
@@ -227,6 +268,10 @@ const styles: Record<string, React.CSSProperties> = {
   name: { fontWeight: 950, color: '#513727', fontSize: 19 },
   personality: { color: '#9a7c6a', fontSize: 12, marginTop: 2, textTransform: 'capitalize' },
   headerActions: { display: 'flex', alignItems: 'center', gap: 8 },
+  viewBtn: {
+    border: '1px solid rgba(207,177,158,0.75)', borderRadius: 99, padding: '8px 10px',
+    background: 'rgba(255,255,255,0.56)', color: '#745f52', cursor: 'pointer', fontSize: 11, fontWeight: 850,
+  },
   iconBtn: {
     border: 0, borderRadius: 99, width: 38, height: 38, background: '#fff0e6', cursor: 'pointer', fontSize: 16,
   },
@@ -235,7 +280,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap',
   },
   transcript: {
-    minHeight: 72, maxHeight: 210, overflowY: 'auto', display: 'flex', flexDirection: 'column',
+    minHeight: 54, maxHeight: 125, overflowY: 'auto', display: 'flex', flexDirection: 'column',
     gap: 7, padding: '2px 3px', scrollBehavior: 'smooth',
   },
   line: { display: 'flex', flexDirection: 'column', gap: 2, padding: '10px 13px', lineHeight: 1.42, fontSize: 16 },
@@ -252,6 +297,10 @@ const styles: Record<string, React.CSSProperties> = {
   keySuggestionBtn: {
     background: '#fff2bd', borderColor: '#e6ad3c', color: '#68440d',
     boxShadow: '0 3px 10px rgba(196,132,25,0.18)', fontWeight: 900,
+  },
+  leaveSuggestionBtn: {
+    background: '#f8e5e0', borderColor: '#d88b78', color: '#7f4438',
+    boxShadow: 'none', fontWeight: 850,
   },
   choiceNumber: { color: '#d27754', fontWeight: 950, marginRight: 4 },
   inputRow: { display: 'flex', alignItems: 'center', gap: 8 },

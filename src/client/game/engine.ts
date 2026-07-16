@@ -38,7 +38,7 @@ function onDebugKey(e: KeyboardEvent) {
 // Affordances (bouncing emoji markers)
 const doorMarkers = new Map<string, Container>()
 const lookMarkerIds = new Set<string>()
-let mamaGlow: Graphics | null = null
+let mamaGlow: Container | null = null
 let npcMarker: Container | null = null
 let exitMarker: Container | null = null
 let npcCenter = { x: WORLD_W / 2, y: WORLD_H / 2 }
@@ -178,9 +178,29 @@ export async function loadStreetScene(game: Game) {
   app.stage.addChild(gridOverlay)
 
   // Mama's glowing beacon (revealed once the mystery is solved)
-  mamaGlow = new Graphics()
-  mamaGlow.circle(0, 0, 34).fill({ color: 0xffd76a, alpha: 0.45 })
-  mamaGlow.circle(0, 0, 20).fill({ color: 0xffe9a8, alpha: 0.6 })
+  mamaGlow = new Container()
+  const mamaRings = new Graphics()
+    .circle(0, 0, 62)
+    .fill({ color: 0xffd43b, alpha: 0.28 })
+    .stroke({ color: 0xffffff, alpha: 0.95, width: 6 })
+    .circle(0, 0, 46)
+    .stroke({ color: 0xffd43b, alpha: 0.95, width: 5 })
+  const mamaHeart = new Text({
+    text: '💛',
+    style: { fontSize: 66, dropShadow: { color: 0x5b3100, alpha: 0.7, blur: 5, distance: 3 } },
+  })
+  mamaHeart.anchor.set(0.5)
+  const mamaLabel = new Text({
+    text: 'MAMA!',
+    style: {
+      fontSize: 22, fontWeight: '900', fill: 0x4d2d00,
+      stroke: { color: 0xffffff, width: 6 },
+      dropShadow: { color: 0x000000, alpha: 0.45, blur: 3, distance: 2 },
+    },
+  })
+  mamaLabel.anchor.set(0.5)
+  mamaLabel.y = 66
+  mamaGlow.addChild(mamaRings, mamaHeart, mamaLabel)
   mamaGlow.visible = false
   app.stage.addChild(mamaGlow)
 
@@ -333,7 +353,7 @@ function tick(ticker: { deltaMS: number }) {
           label: isMama && store.solved
             ? '💛 Find Mama!'
             : building.isEnterable
-              ? '🚪 Knock'
+              ? '🚪 Go Inside'
               : `👀 LOOK: ${building.name}`,
           enterable: building.isEnterable,
           isMama,

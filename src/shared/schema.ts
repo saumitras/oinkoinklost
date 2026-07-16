@@ -19,6 +19,7 @@ export const NPC = z.object({
     smallTalkFacts: z.array(z.string()),
     openingChoices: z.array(z.string()),
     clueLeadIn: z.string(),
+    animalSound: z.string().nullish(),
   }).optional(),
 })
 
@@ -69,6 +70,16 @@ export const GameBible = z.object({
   finalLocationBuildingId: z.string(),
   reunionLine: z.string(),
   verification: z.string(),
+  visualDirection: z.object({
+    layout: z.enum(['outdoor_hub', 'interior_hub', 'mixed_hub']),
+    architecture: z.string(),
+    palette: z.array(z.string()).min(2).max(6),
+    lighting: z.string(),
+    atmosphere: z.string(),
+    walkableSurface: z.string(),
+    imageStyle: z.string(),
+    avoid: z.array(z.string()),
+  }).nullish(),
 })
 
 export const ScreenAnnotation = z.object({
@@ -111,9 +122,17 @@ export interface NPCChatResponse {
   hintId?: string | null
 }
 
+export interface PreloadedNPCReply {
+  reply: string
+  suggestedReplies: SuggestedNPCReply[]
+  mood: NPCChatResponse['mood']
+  conversationComplete: boolean
+  audioUrl?: string | null
+}
+
 export type Stage =
   | 'bible' | 'street' | 'outline' | 'hotspots' | 'character'
-  | `room_${string}` | 'tts' | 'reunion'
+  | 'npc_openers' | `room_${string}` | 'tts' | 'reunion'
 
 export type StageStatus = 'pending' | 'running' | 'done' | 'failed'
 
@@ -131,10 +150,12 @@ export interface Game {
     characterSideUrl?: string
     rooms: Record<string, { imageUrl?: string; annotation?: RoomAnnotation }>
     audio: Record<string, string>
+    npcOpeners?: Record<string, PreloadedNPCReply>
     reunionPhotoUrl?: string
   }
   annotation?: ScreenAnnotation
   fromWarmPool: boolean
+  cozyVisuals?: boolean
 }
 
 export interface SSEEvent {

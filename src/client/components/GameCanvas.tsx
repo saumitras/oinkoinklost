@@ -25,6 +25,7 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
   const toastTimer = useRef<number>(0)
   const [showIntro, setShowIntro] = useState(true)
   const [muted, setMutedState] = useState(isMuted())
+  const loadedStreetUrl = useRef(game.assets.streetUrl)
   const isTouch = useRef(
     typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
   ).current
@@ -180,12 +181,25 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
     s.setShowPicker(false)
     s.setSolved(true)
     playChime()
-    // Generated door annotations are not always precise enough to make a final
-    // proximity interaction dependable. The correct deduction is the win.
-    s.setShowReunion(true)
+    stopAudio()
+    setDialogue(null)
+    s.setScreen('street')
+    loadStreetScene(s.game ?? game)
+    showToast('💛 Correct! Follow the glowing MAMA marker!', 5200)
   }
 
   const currentGame = store.game ?? game
+
+  // Dev-time hub regeneration keeps the same game alive. Reload the Pixi
+  // scene when its cache-busted street URL changes instead of requiring the
+  // player to abandon the adventure.
+  useEffect(() => {
+    const nextUrl = currentGame.assets.streetUrl
+    if (!nextUrl || nextUrl === loadedStreetUrl.current || store.screen !== 'street') return
+    loadedStreetUrl.current = nextUrl
+    loadStreetScene(currentGame)
+  }, [currentGame, store.screen])
+
   const allHintsCollected = currentGame.bible
     ? store.collectedHintIds.length >= currentGame.bible.hints.length
     : false
@@ -206,12 +220,26 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
     setMutedState(next)
   }
 
+  function goHome() {
+    stopAudio()
+    onNewAdventure()
+  }
+
   const isLookAction = store.nearby?.kind === 'door' && !store.nearby.enterable
 
   return (
     <div style={styles.wrapper}>
       {ambientUrl && <img src={ambientUrl} alt="" aria-hidden="true" style={styles.ambientBg} />}
       <div ref={containerRef} style={styles.canvas} />
+
+      <button
+        style={styles.homeBtn}
+        onClick={goHome}
+        aria-label="Return to the adventure library"
+        title="Return to the adventure library"
+      >
+        ⌂ Home
+      </button>
 
       {store.screen !== 'street' && !showIntro && !store.showPicker && !store.showReunion && (
         <button style={styles.exitBtn} onClick={returnToStreet}>← Leave house</button>
@@ -237,12 +265,12 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
           {isTouch ? (
             <>
               <div style={styles.controlRow}><span style={styles.controlKey}>D-pad</span><span>Move</span></div>
-              <div style={styles.controlRow}><span style={styles.controlKey}>Tap</span><span>Look · Knock · Talk</span></div>
+              <div style={styles.controlRow}><span style={styles.controlKey}>Tap</span><span>Look · Go Inside · Talk</span></div>
             </>
           ) : (
             <>
               <div style={styles.controlRow}><span style={styles.controlKey}>WASD / Arrows</span><span>Move</span></div>
-              <div style={styles.controlRow}><span style={styles.controlKey}>E / Space</span><span>Look · Knock · Talk</span></div>
+              <div style={styles.controlRow}><span style={styles.controlKey}>E / Space</span><span>Look · Go Inside · Talk</span></div>
               <div style={styles.controlRow}><span style={styles.controlKey}>Esc</span><span>Leave</span></div>
             </>
           )}
@@ -261,11 +289,16 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
 
       {toast && <div style={styles.toast}>{toast}</div>}
 
+      {store.solved && !store.showReunion && !store.showPicker && (
+        <div style={styles.mamaMission}>💛 Follow the glowing MAMA marker and choose Find Mama!</div>
+      )}
+
       {dialogue && activeNpc && activeHint && (
         <DialogueBubble
           gameId={currentGame.id}
           npc={activeNpc}
           sessionId={dialogue.sessionId}
+          preloadedOpener={currentGame.assets.npcOpeners?.[activeNpc.id]}
           hintAlreadyCollected={store.collectedHintIds.includes(activeHint.id)}
           onClueGranted={onConversationClue}
           onClose={onDialogueClose}
@@ -336,6 +369,12 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(255,255,255,0.85)', border: 'none', borderRadius: 12,
     padding: '8px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', color: '#555',
   },
+  homeBtn: {
+    position: 'absolute', zIndex: 60, top: 16, right: 16,
+    background: 'rgba(255,255,255,0.88)', color: '#5b3a1e', border: '2px solid rgba(255,255,255,0.72)',
+    borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 900, cursor: 'pointer',
+    backdropFilter: 'blur(8px)', boxShadow: '0 3px 14px rgba(0,0,0,0.2)',
+  },
   audioBtn: {
     position: 'absolute', zIndex: 12, top: 16, background: 'rgba(255,255,255,0.86)',
     color: '#5b3a1e', border: 0, borderRadius: 12, padding: '9px 12px', fontSize: 13,
@@ -372,6 +411,12 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(255,255,255,0.95)', color: '#5b3a1e', padding: '12px 22px',
     borderRadius: 18, fontSize: 16, fontWeight: 700, maxWidth: '80%',
     boxShadow: '0 4px 16px rgba(0,0,0,0.25)', pointerEvents: 'none', textAlign: 'center',
+  },
+  mamaMission: {
+    position: 'absolute', zIndex: 28, top: 18, left: '50%', transform: 'translateX(-50%)',
+    padding: '11px 18px', borderRadius: 99, background: 'rgba(255,244,177,0.94)',
+    border: '3px solid #f2b92f', color: '#614109', fontSize: 14, fontWeight: 950,
+    boxShadow: '0 6px 22px rgba(96,62,0,0.3)', whiteSpace: 'nowrap',
   },
   pickerBtn: {
     position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)',

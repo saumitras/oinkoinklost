@@ -16,6 +16,7 @@ interface PresetWorld {
 
 export function TitleScreen({ onStart }: Props) {
   const [idea, setIdea] = useState('')
+  const [cozyVisuals, setCozyVisuals] = useState(false)
   const [presets, setPresets] = useState<PresetWorld[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingPreset, setLoadingPreset] = useState<string | null>(null)
@@ -46,7 +47,7 @@ export function TitleScreen({ onStart }: Props) {
       const res = await fetch('/api/game', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idea }),
+        body: JSON.stringify({ idea, cozyVisuals }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -96,7 +97,7 @@ export function TitleScreen({ onStart }: Props) {
           <div style={styles.emoji}>🐷</div>
           <div>
             <h1 style={styles.title}>Oink Oink Lost</h1>
-            <p style={styles.subtitle}>Choose a ready-made world or create a one-of-a-kind mystery.</p>
+            <p style={styles.subtitle}>A little lost piglet, three friendly clues, and one big Mama mystery.</p>
           </div>
         </div>
 
@@ -117,7 +118,6 @@ export function TitleScreen({ onStart }: Props) {
                   {preset.emoji} {loadingPreset === preset.slug ? 'Opening…' : preset.title}
                 </span>
                 <span style={styles.presetSubtitle}>{preset.subtitle}</span>
-                <span style={styles.readyBadge}>⚡ Ready instantly</span>
               </span>
             </button>
           ))}
@@ -142,6 +142,20 @@ export function TitleScreen({ onStart }: Props) {
           </button>
         </div>
 
+        <label style={styles.visualOption}>
+          <input
+            type="checkbox"
+            checked={cozyVisuals}
+            onChange={event => setCozyVisuals(event.target.checked)}
+            disabled={busy}
+            style={styles.checkbox}
+          />
+          <span>
+            <strong>Extra cozy &amp; bright visuals</strong>
+            <small style={styles.optionHelp}>Soft pastels, warm sunlight, cheerful colors, and nothing dark or scary</small>
+          </span>
+        </label>
+
         <button style={styles.surpriseBtn} onClick={surpriseMe} disabled={busy || !presets.length}>
           🎲 Surprise me with a ready world
         </button>
@@ -165,9 +179,9 @@ const styles: Record<string, React.CSSProperties> = {
   brandRow: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 24 },
   emoji: { fontSize: 62, lineHeight: 1 },
   title: { fontSize: 34, fontWeight: 900, color: '#e07b54', margin: 0 },
-  subtitle: { fontSize: 15, lineHeight: 1.4, color: '#7c6a60', margin: '4px 0 0' },
+  subtitle: { fontSize: 12, lineHeight: 1.35, color: '#8a776c', margin: '4px 0 0', whiteSpace: 'nowrap' },
   label: { color: '#5e4335', fontSize: 16, fontWeight: 900, marginBottom: 12, textAlign: 'center' },
-  presetGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 13 },
+  presetGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 13 },
   presetCard: {
     position: 'relative', height: 210, padding: 0, border: '3px solid white', borderRadius: 18,
     overflow: 'hidden', cursor: 'pointer', textAlign: 'left', boxShadow: '0 5px 18px rgba(70,43,28,0.18)',
@@ -180,10 +194,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
   presetTitle: { fontSize: 19, fontWeight: 950 },
   presetSubtitle: { fontSize: 12, opacity: 0.9, lineHeight: 1.25 },
-  readyBadge: { alignSelf: 'flex-start', marginTop: 4, padding: '4px 8px', borderRadius: 99, background: '#fff3d6', color: '#7b5523', fontSize: 10, fontWeight: 900 },
   divider: { display: 'flex', alignItems: 'center', gap: 12, color: '#a58c7e', fontSize: 12, fontWeight: 800, margin: '20px 0 13px' },
   dividerLine: { height: 1, background: '#ead8cc', flex: 1 },
   customRow: { display: 'flex', gap: 10 },
+  visualOption: {
+    display: 'flex', alignItems: 'flex-start', gap: 9, width: 'fit-content', marginTop: 10,
+    color: '#6f5748', fontSize: 12, lineHeight: 1.25, cursor: 'pointer', userSelect: 'none',
+  },
+  checkbox: { width: 16, height: 16, marginTop: 1, accentColor: '#e07b54', cursor: 'pointer' },
+  optionHelp: { display: 'block', marginTop: 2, color: '#9d887c', fontSize: 10, fontWeight: 500 },
   input: {
     flex: 1, minWidth: 0, padding: '13px 15px', fontSize: 15, borderRadius: 12,
     border: '2px solid #f0d0c0', outline: 'none', background: 'white',

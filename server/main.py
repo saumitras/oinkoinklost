@@ -15,8 +15,8 @@ from server.config import ASSETS_DIR, PORT
 from server.pipeline import run_pipeline, pick_random_idea, spawn_task
 from server.gamestore import get_or_load_game, set_game, snapshot_game
 from server.events import subscribe, unsubscribe, emit
-from server.ai import moderate_idea, generate_reunion_photo, generate_npc_reply, generate_tts
-from server.schema import NPCModelReply, SuggestedReply
+from server.ai import build_npc_opener, moderate_idea, generate_reunion_photo, generate_npc_reply, generate_tts
+from server.schema import NPCModelReply, PreloadedNPCReply, SuggestedReply
 from server.storage import save_asset
 
 app = FastAPI()
@@ -37,6 +37,7 @@ app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 
 class StartGameBody(BaseModel):
     idea: str = ""
+    cozyVisuals: bool = False
 
 
 class SolveBody(BaseModel):
@@ -74,6 +75,12 @@ PRESET_WORLDS = {
         "subtitle": "Balloons, presents, and dino friends",
         "emoji": "🦕",
     },
+    "moon-station": {
+        "templateId": "Kgo4d31zD9kv1nANmRLep",
+        "title": "Moon Station",
+        "subtitle": "Moon views, space gardens, and cosmic clues",
+        "emoji": "🚀",
+    },
 }
 
 
@@ -88,7 +95,7 @@ async def start_game(body: StartGameBody):
             "suggestions": ["a pumpkin farm in autumn", "a tiny seaside village", "a dinosaur birthday party"],
         })
 
-    game = await run_pipeline(idea)
+    game = await run_pipeline(idea, cozy_visuals=body.cozyVisuals)
     return {"gameId": game.id}
 
 
@@ -124,6 +131,13 @@ async def start_preset(slug: str):
     game.id = nanoid()
     game.createdAt = datetime.now(timezone.utc).isoformat()
     game.fromWarmPool = True
+    for npc in game.bible.npcs:  # type: ignore[union-attr]
+        if npc.id not in game.assets.npcOpeners:
+            opener = build_npc_opener(npc, game.bible)
+            game.assets.npcOpeners[npc.id] = PreloadedNPCReply(
+                **opener.model_dump(),
+                audioUrl=None,
+            )
     set_game(game)
     snapshot_game(game)
     return {"gameId": game.id, "preset": slug}
@@ -206,6 +220,11 @@ async def npc_chat(game_id: str, npc_id: str, body: NPCChatBody):
         state["clueGranted"] = True
 
     message = body.message.strip()
+    preloaded = game.assets.npcOpeners.get(npc_id)
+    if body.source != "start" and not state["history"] and preloaded:
+        # The client can render a shipped opener immediately without making a
+        # setup request. Seed it here when the player's first real turn arrives.
+        state["history"].append({"role": npc.name, "text": preloaded.reply})
     if body.source != "start" and message:
         state["userTurns"] += 1
         state["history"].append({"role": "Piglet", "text": message})
@@ -220,47 +239,52 @@ async def npc_chat(game_id: str, npc_id: str, body: NPCChatBody):
         and (asks_for_mama or state["userTurns"] >= 2)
     )
 
-    try:
-        turn = await generate_npc_reply(
-            game.bible,
-            npc_id,
-            message,
-            state["history"],
-            must_reveal_hint=should_grant,
-            hint_already_collected=bool(state["clueGranted"]),
-        )
-    except Exception as e:
-        # Keep the prototype playable while prompts/models are being iterated.
-        print(f"[npc-chat:{game_id}:{npc_id}] {e}")
-        if should_grant:
-            reply = f"{npc.conversation.clueLeadIn} {hint.text}"
-        elif body.source == "start":
-            reply = npc.lines.greeting
-        else:
-            reply = npc.lines.idle
-        turn = NPCModelReply(
-            reply=reply,
-            suggestedReplies=[
-                SuggestedReply(text="Have you seen Mama?", intent="ask_mama"),
-                SuggestedReply(text=f"Tell me about {npc.conversation.favoriteTopic}.", intent="small_talk"),
-                SuggestedReply(text="See you soon!", intent="goodbye"),
-            ],
-            mood="helpful" if should_grant else "cheerful",
-            conversationComplete=False,
-        )
+    use_preloaded = body.source == "start" and not state["history"] and preloaded is not None
+    if use_preloaded:
+        turn = NPCModelReply.model_validate(preloaded.model_dump(exclude={"audioUrl"}))
+    else:
+        try:
+            turn = await generate_npc_reply(
+                game.bible,
+                npc_id,
+                message,
+                state["history"],
+                must_reveal_hint=should_grant,
+                hint_already_collected=bool(state["clueGranted"]),
+            )
+        except Exception as e:
+            # Keep the prototype playable while prompts/models are being iterated.
+            print(f"[npc-chat:{game_id}:{npc_id}] {e}")
+            if should_grant:
+                reply = f"{npc.conversation.clueLeadIn} {hint.text}"
+            elif body.source == "start":
+                reply = build_npc_opener(npc, game.bible).reply
+            else:
+                reply = npc.lines.idle
+            turn = NPCModelReply(
+                reply=reply,
+                suggestedReplies=[
+                    SuggestedReply(text="Have you seen my Mama?", intent="ask_mama"),
+                    SuggestedReply(text=f"Tell me about {npc.conversation.favoriteTopic}.", intent="small_talk"),
+                    SuggestedReply(text="See you soon!", intent="goodbye"),
+                ],
+                mood="helpful" if should_grant else "cheerful",
+                conversationComplete=False,
+            )
 
     if should_grant:
         state["clueGranted"] = True
     state["history"].append({"role": npc.name, "text": turn.reply})
     state["history"] = state["history"][-10:]
 
-    audio_url = None
-    try:
-        audio = await generate_tts(turn.reply, npc.ttsVoice or "alloy")
-        digest = hashlib.sha256(f"{npc_id}:{turn.reply}".encode()).hexdigest()[:16]
-        audio_url = save_asset(f"games/{game.id}/audio/chat_{digest}.mp3", audio)
-    except Exception as e:
-        print(f"[npc-chat-tts:{game_id}:{npc_id}] {e}")
+    audio_url = preloaded.audioUrl if use_preloaded and preloaded else None
+    if not use_preloaded:
+        try:
+            audio = await generate_tts(turn.reply, npc.ttsVoice or "alloy")
+            digest = hashlib.sha256(f"{npc_id}:{turn.reply}".encode()).hexdigest()[:16]
+            audio_url = save_asset(f"games/{game.id}/audio/chat_{digest}.mp3", audio)
+        except Exception as e:
+            print(f"[npc-chat-tts:{game_id}:{npc_id}] {e}")
 
     return {
         **turn.model_dump(),
@@ -282,7 +306,7 @@ async def solve(game_id: str, body: SolveBody):
     if correct and not game.assets.reunionPhotoUrl:
         async def gen_reunion():
             try:
-                data = await generate_reunion_photo(game.bible)  # type: ignore
+                data = await generate_reunion_photo(game.bible, game.cozyVisuals)  # type: ignore
                 url = save_asset(f"games/{game.id}/reunion.png", data)
                 game.assets.reunionPhotoUrl = url
                 set_game(game)
