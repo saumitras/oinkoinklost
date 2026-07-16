@@ -91,21 +91,22 @@ export function TitleScreen({ onStart }: Props) {
   const busy = loading || loadingPreset !== null
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.brandRow}>
+    <div className="title-screen" style={styles.container}>
+      <div className="title-card" style={styles.card}>
+        <div className="title-brand-row" style={styles.brandRow}>
           <div style={styles.emoji}>🐷</div>
           <div>
             <h1 style={styles.title}>Oink Oink Lost</h1>
-            <p style={styles.subtitle}>A little lost piglet, three friendly clues, and one big Mama mystery.</p>
+            <p className="title-subtitle" style={styles.subtitle}>A little lost piglet, three friendly clues, and one big Mama mystery.</p>
           </div>
         </div>
 
         <div style={styles.label}>Where should the adventure happen?</div>
-        <div style={styles.presetGrid}>
+        <div className="title-preset-grid" style={styles.presetGrid}>
           {presets.map(preset => (
             <button
               key={preset.slug}
+              className="title-preset-card"
               style={styles.presetCard}
               onClick={() => startPreset(preset)}
               disabled={busy}
@@ -125,7 +126,7 @@ export function TitleScreen({ onStart }: Props) {
 
         <div style={styles.divider}><span style={styles.dividerLine} /><span>or invent your own</span><span style={styles.dividerLine} /></div>
 
-        <div style={styles.customRow}>
+        <div className="title-custom-row" style={styles.customRow}>
           <input
             id="adventure-idea"
             style={styles.input}

@@ -32,8 +32,8 @@ export function LocationPicker({ game, collectedHintIds, onSolved }: Props) {
   }
 
   return (
-    <div style={styles.overlay}>
-      <div style={styles.card}>
+    <div className="location-picker-overlay" style={styles.overlay}>
+      <div className="location-picker-card" style={styles.card}>
         <h2 style={styles.title}>🔍 Where is Mama?</h2>
         <p style={styles.subtitle}>Review the clues, then choose the only place left.</p>
         <HintTracker
@@ -42,16 +42,27 @@ export function LocationPicker({ game, collectedHintIds, onSolved }: Props) {
           embedded
           forceExpanded
         />
-        <div style={styles.grid}>
+        <div className="location-picker-grid" style={styles.grid}>
           {game.bible.candidateLocations.map(loc => (
-            <button
-              key={loc.id}
-              style={{ ...styles.locBtn, ...(selected === loc.id ? styles.selected : {}) }}
-              onClick={() => pick(loc.id)}
-            >
-              <span style={styles.emoji}>{loc.emoji}</span>
-              <span style={styles.locName}>{loc.name}</span>
-            </button>
+            (() => {
+              const point = game.annotation?.doors.find(door => door.buildingId === loc.id)
+              return (
+                <button
+                  key={loc.id}
+                  style={{ ...styles.locBtn, ...(selected === loc.id ? styles.selected : {}) }}
+                  onClick={() => pick(loc.id)}
+                >
+                  {game.assets.streetUrl && point && (
+                    <span style={{
+                      ...styles.locationCrop,
+                      backgroundImage: `url(${game.assets.streetUrl})`,
+                      backgroundPosition: `${(point.x / 1024) * 100}% ${(point.y / 1024) * 100}%`,
+                    }} aria-hidden="true" />
+                  )}
+                  <span style={styles.locLabel}><span style={styles.emoji}>{loc.emoji}</span><span style={styles.locName}>{loc.name}</span></span>
+                </button>
+              )
+            })()
           ))}
         </div>
         {nudge && <p style={styles.nudge}>{nudge}</p>}
@@ -88,7 +99,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    padding: '20px 12px',
+    padding: 8,
     borderRadius: 16,
     border: '3px solid #f0d0c0',
     background: '#fff9f5',
@@ -99,7 +110,13 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'transform 0.1s',
   },
   selected: { borderColor: '#e07b54', background: '#fff0e8' },
-  emoji: { fontSize: 36, marginBottom: 8 },
+  locationCrop: {
+    display: 'block', width: '100%', height: 78, borderRadius: 11,
+    backgroundSize: '330% 330%', backgroundRepeat: 'no-repeat',
+    boxShadow: 'inset 0 0 0 2px rgba(255,255,255,0.76)',
+  },
+  locLabel: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 3px 3px' },
+  emoji: { fontSize: 22 },
   locName: { lineHeight: 1.3 },
   nudge: { marginTop: 20, color: '#e07b54', fontWeight: 600, fontSize: 15 },
 }

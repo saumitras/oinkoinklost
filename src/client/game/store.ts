@@ -7,6 +7,7 @@ export type Screen = 'street' | `room_${string}`
 export type Nearby =
   | { kind: 'door'; buildingId: string; label: string; enterable: boolean; isMama: boolean }
   | { kind: 'npc'; npcId: string; label: string }
+  | { kind: 'quest'; objectId: string; label: string }
   | { kind: 'exit'; label: string }
 
 interface GameState {
@@ -70,7 +71,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       cur === nearby ||
       (cur !== null && nearby !== null && cur.kind === nearby.kind &&
         (cur.kind !== 'door' || (nearby.kind === 'door' && cur.buildingId === nearby.buildingId)) &&
-        (cur.kind !== 'npc' || (nearby.kind === 'npc' && cur.npcId === nearby.npcId)))
+        (cur.kind !== 'npc' || (nearby.kind === 'npc' && cur.npcId === nearby.npcId)) &&
+        (cur.kind !== 'quest' || (nearby.kind === 'quest' && cur.objectId === nearby.objectId)))
     if (!same) set({ nearby })
   },
   setSolved: (v) => {

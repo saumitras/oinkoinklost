@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Game } from '@shared/schema'
 import { useGameStore } from '../game/store'
-import { initEngine, destroyEngine, loadStreetScene, loadRoomScene } from '../game/engine'
+import {
+  initEngine, destroyEngine, loadStreetScene, loadRoomScene,
+  setRoomQuestObjects, showRoomQuestCompletion,
+} from '../game/engine'
 import { setVirtualKey, type Dir } from '../game/input'
 import { HintTracker } from './HintTracker'
 import { DialogueBubble } from './DialogueBubble'
 import { LocationPicker } from './LocationPicker'
 import { ReunionScene } from './ReunionScene'
 import { IntroOverlay } from './IntroOverlay'
+import { QuestBrief } from './QuestBrief'
+import {
+  pumpkinQuestForNpc,
+  pumpkinQuestForRoom,
+  isPumpkinFarm,
+  type PumpkinQuest,
+} from '../game/pumpkinQuests'
 import {
   getBackgroundMusicLevel,
   isBackgroundMusicMuted,
@@ -42,9 +52,16 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
   const [musicMuted, setMusicMutedState] = useState(isBackgroundMusicMuted())
   const [musicLevel, setMusicLevelState] = useState(Math.round(getBackgroundMusicLevel() * 100))
   const [showAudioPanel, setShowAudioPanel] = useState(false)
+  const [questProgress, setQuestProgress] = useState<Record<string, 'searching' | 'completed'>>({})
+  const [questBrief, setQuestBrief] = useState<PumpkinQuest | null>(null)
+  const [questMistakes, setQuestMistakes] = useState<Record<string, number>>({})
   const loadedStreetUrl = useRef(game.assets.streetUrl)
   const isTouch = useRef(
-    typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+    typeof window !== 'undefined' && (
+      window.matchMedia('(pointer: coarse)').matches
+      || navigator.maxTouchPoints > 0
+      || window.innerWidth <= 700
+    )
   ).current
 
   function showToast(msg: string, ms = 2600) {
@@ -95,11 +112,53 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
     return () => clearInterval(interval)
   }, [game.id])
 
+  // A small deterministic story director: if a search stalls, Piglet gently
+  // restates the visual goal without spending another model call.
+  useEffect(() => {
+    if (!store.screen.startsWith('room_')) return
+    const activeRoomId = store.screen.slice(5)
+    const current = useGameStore.getState().game ?? game
+    const quest = pumpkinQuestForRoom(current, activeRoomId)
+    if (!quest || questProgress[quest.npcId] !== 'searching') return
+    const timer = window.setTimeout(() => {
+      if (useGameStore.getState().screen !== `room_${activeRoomId}`) return
+      const reminder = `Piglet wonders: ${quest.searchPrompt}`
+      showToast(`💭 ${reminder}`, 7000)
+      speakText(reminder)
+    }, 11000)
+    return () => window.clearTimeout(timer)
+  }, [store.screen, questProgress, game]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleInteract = useCallback(() => {
     const s = useGameStore.getState()
     const currentGame = s.game ?? game
     const nearby = s.nearby
     if (!nearby || dialogue || s.showPicker || s.showReunion) return
+
+    if (nearby.kind === 'quest') {
+      const activeRoomId = s.screen.startsWith('room_') ? s.screen.slice(5) : ''
+      const quest = pumpkinQuestForRoom(currentGame, activeRoomId)
+      const object = quest?.objects.find(candidate => candidate.id === nearby.objectId)
+      if (!quest || !object || questProgress[quest.npcId] !== 'searching') return
+      stopAudio()
+      if (object.correct) {
+        setQuestProgress(progress => ({ ...progress, [quest.npcId]: 'completed' }))
+        showRoomQuestCompletion(object)
+        playChime()
+        showToast(`🌟 ${quest.success}`, 9000)
+        speakText(quest.success)
+      } else {
+        const mistakes = (questMistakes[quest.npcId] ?? 0) + 1
+        setQuestMistakes(current => ({ ...current, [quest.npcId]: mistakes }))
+        const correctObject = quest.objects.find(candidate => candidate.correct)!
+        const strongerHint = mistakes >= 2
+          ? `${object.response} The right object is glowing near the ${correctObject.x < 512 ? 'left' : 'right'} side of the room.`
+          : object.response
+        showToast(`🤔 ${strongerHint}`, 7000)
+        speakText(strongerHint)
+      }
+      return
+    }
 
     function openNpcDialogue(npcId: string) {
       const npc = currentGame.bible?.npcs.find(n => n.id === npcId)
@@ -133,7 +192,16 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
           return
         }
         s.setScreen(`room_${building.id}`)
-        loadRoomScene(currentGame, building.id)
+        loadRoomScene(currentGame, building.id).then(() => {
+          const quest = pumpkinQuestForRoom(currentGame, building.id)
+          if (quest && questProgress[quest.npcId] === 'searching') {
+            setRoomQuestObjects(quest.objects)
+          } else if (quest && questProgress[quest.npcId] === 'completed') {
+            showRoomQuestCompletion(quest.objects.find(object => object.correct))
+          } else {
+            setRoomQuestObjects(null)
+          }
+        })
       } else {
         const description = building.exteriorDescription
           || `${building.name} is part of this curious little world.`
@@ -156,7 +224,7 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
     if (nearby.kind === 'exit') {
       returnToStreet()
     }
-  }, [dialogue, game]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dialogue, game, questProgress, questMistakes]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keyboard: E/Space/Enter to interact, Escape to leave room
   useEffect(() => {
@@ -203,6 +271,8 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
     const s = useGameStore.getState()
     stopAudio()
     setDialogue(null)
+    setQuestBrief(null)
+    setRoomQuestObjects(null)
     s.setScreen('street')
     loadStreetScene(s.game ?? game)
   }
@@ -269,13 +339,31 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
   }
 
   const isLookAction = store.nearby?.kind === 'door' && !store.nearby.enterable
+  const pumpkinWorld = isPumpkinFarm(currentGame)
+
+  function beginQuest(quest: PumpkinQuest) {
+    setQuestBrief(null)
+    setQuestProgress(progress => ({ ...progress, [quest.npcId]: 'searching' }))
+    setRoomQuestObjects(quest.objects)
+    showToast(`🔎 ${quest.searchPrompt}`, 7000)
+    speakText(quest.searchPrompt)
+  }
+
+  function interceptMamaQuestion(npcId: string, hintId: string): boolean {
+    if (store.collectedHintIds.includes(hintId)) return false
+    const quest = pumpkinQuestForNpc(currentGame, npcId)
+    if (!quest || questProgress[npcId] === 'completed') return false
+    setQuestBrief(quest)
+    return true
+  }
 
   return (
-    <div style={styles.wrapper}>
+    <div className={`game-shell${isTouch ? ' touch-mode' : ''}`} style={styles.wrapper}>
       {ambientUrl && <img src={ambientUrl} alt="" aria-hidden="true" style={styles.ambientBg} />}
       <div ref={containerRef} style={styles.canvas} />
+      {pumpkinWorld && !showIntro && <WorldEffects />}
 
-      <div style={styles.topControls}>
+      <div className="game-top-controls" style={styles.topControls}>
         <button
           style={styles.iconBtn}
           onClick={goHome}
@@ -296,7 +384,7 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
       </div>
 
       {showAudioPanel && (
-        <div style={styles.audioPanel} role="dialog" aria-label="Audio controls">
+        <div className="game-audio-panel" style={styles.audioPanel} role="dialog" aria-label="Audio controls">
           <div style={styles.audioPanelHeader}>
             <span>Audio</span>
             <button
@@ -347,6 +435,7 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
 
       {store.screen !== 'street' && !showIntro && !store.showPicker && !store.showReunion && (
         <button
+          className="game-exit-button"
           style={{ ...styles.exitBtn, top: showAudioPanel ? 286 : 68 }}
           onClick={returnToStreet}
         >← Leave house</button>
@@ -358,7 +447,7 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
 
       {/* Persistent controls legend */}
       {!showIntro && !store.showPicker && !store.showReunion && (
-        <div style={{
+        <div className="game-controls-legend" style={{
           ...styles.controlsLegend,
           ...(isTouch ? styles.controlsLegendTouch : {}),
           ...(isTouch && showAudioPanel ? { top: 334 } : {}),
@@ -381,7 +470,7 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
 
       {/* Contextual action button — the single interact affordance */}
       {store.nearby && !dialogue && !store.showPicker && !store.showReunion && !showIntro && (
-        <button style={{ ...styles.actionBtn, ...(isLookAction ? styles.lookActionBtn : {}) }} onClick={handleInteract}>
+        <button className="game-action-button" style={{ ...styles.actionBtn, ...(isLookAction ? styles.lookActionBtn : {}) }} onClick={handleInteract}>
           {store.nearby.label}
         </button>
       )}
@@ -389,10 +478,10 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
       {/* Touch D-pad */}
       {isTouch && !dialogue && !showIntro && <DPad />}
 
-      {toast && <div style={styles.toast}>{toast}</div>}
+      {toast && <div className="game-toast" style={styles.toast}>{toast}</div>}
 
       {store.solved && !store.showReunion && !store.showPicker && (
-        <div style={styles.mamaMission}>💛 Follow the glowing MAMA marker and choose Find Mama!</div>
+        <div className="game-mama-mission" style={styles.mamaMission}>💛 Follow the glowing MAMA marker and choose Find Mama!</div>
       )}
 
       {dialogue && activeNpc && activeHint && (
@@ -404,6 +493,15 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
           hintAlreadyCollected={store.collectedHintIds.includes(activeHint.id)}
           onClueGranted={onConversationClue}
           onClose={onDialogueClose}
+          onAskMama={() => interceptMamaQuestion(activeNpc.id, activeHint.id)}
+        />
+      )}
+
+      {questBrief && (
+        <QuestBrief
+          quest={questBrief}
+          onStart={() => beginQuest(questBrief)}
+          onLater={() => setQuestBrief(null)}
         />
       )}
 
@@ -416,17 +514,41 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
       )}
 
       {store.showReunion && (
-        <ReunionScene game={currentGame} onNewAdventure={onNewAdventure} />
+        <ReunionScene
+          game={currentGame}
+          onNewAdventure={onNewAdventure}
+          accomplishments={Object.entries(questProgress)
+            .filter(([, status]) => status === 'completed')
+            .map(([npcId]) => pumpkinQuestForNpc(currentGame, npcId)?.title)
+            .filter((title): title is string => Boolean(title))}
+        />
       )}
 
-      {showIntro && <IntroOverlay game={currentGame} onBegin={() => setShowIntro(false)} />}
+      {showIntro && <IntroOverlay game={currentGame} onBegin={() => {
+        setShowIntro(false)
+        if (isTouch) showToast('👆 Tap anywhere to walk, or use the arrow pad. Tap the action button when it appears!', 7200)
+      }} />}
 
       {/* Re-open picker if dismissed */}
       {allHintsCollected && !store.solved && !store.showPicker && !store.showReunion && !dialogue && (
-        <button style={styles.pickerBtn} onClick={() => store.setShowPicker(true)}>
+        <button className="game-picker-button" style={styles.pickerBtn} onClick={() => store.setShowPicker(true)}>
           🔍 Where is Mama?
         </button>
       )}
+    </div>
+  )
+}
+
+function WorldEffects() {
+  return (
+    <div className="world-effects" aria-hidden="true">
+      {Array.from({ length: 14 }, (_, index) => (
+        <span className={index % 3 === 0 ? 'world-leaf' : 'world-speck'} key={index} style={{
+          left: `${(index * 29) % 96}%`,
+          animationDelay: `${-index * 0.63}s`,
+          animationDuration: `${6 + (index % 5)}s`,
+        }} />
+      ))}
     </div>
   )
 }
@@ -462,6 +584,24 @@ function SoundIcon({ muted }: { muted: boolean }) {
 }
 
 function DPad() {
+  useEffect(() => {
+    const release = () => {
+      setVirtualKey('up', false)
+      setVirtualKey('down', false)
+      setVirtualKey('left', false)
+      setVirtualKey('right', false)
+    }
+    window.addEventListener('pointerup', release)
+    window.addEventListener('pointercancel', release)
+    window.addEventListener('blur', release)
+    return () => {
+      window.removeEventListener('pointerup', release)
+      window.removeEventListener('pointercancel', release)
+      window.removeEventListener('blur', release)
+      release()
+    }
+  }, [])
+
   function bind(dir: Dir) {
     return {
       onPointerDown: (e: React.PointerEvent) => {
@@ -475,22 +615,22 @@ function DPad() {
     }
   }
   return (
-    <div style={styles.dpad}>
+    <div className="game-dpad" style={styles.dpad} aria-label="Movement controls">
       <div />
-      <button style={styles.dpadBtn} {...bind('up')}>▲</button>
+      <button aria-label="Move up" style={styles.dpadBtn} {...bind('up')}>▲</button>
       <div />
-      <button style={styles.dpadBtn} {...bind('left')}>◀</button>
+      <button aria-label="Move left" style={styles.dpadBtn} {...bind('left')}>◀</button>
       <div />
-      <button style={styles.dpadBtn} {...bind('right')}>▶</button>
+      <button aria-label="Move right" style={styles.dpadBtn} {...bind('right')}>▶</button>
       <div />
-      <button style={styles.dpadBtn} {...bind('down')}>▼</button>
+      <button aria-label="Move down" style={styles.dpadBtn} {...bind('down')}>▼</button>
       <div />
     </div>
   )
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  wrapper: { position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', background: '#2b2117' },
+  wrapper: { position: 'relative', width: '100vw', height: '100dvh', minHeight: '-webkit-fill-available', overflow: 'hidden', background: '#2b2117', touchAction: 'none' },
   ambientBg: {
     position: 'absolute', inset: -24, width: 'calc(100% + 48px)', height: 'calc(100% + 48px)',
     objectFit: 'cover', filter: 'blur(22px) saturate(0.8) brightness(0.48)', opacity: 0.9,

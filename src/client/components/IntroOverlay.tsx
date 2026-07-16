@@ -23,8 +23,8 @@ export function IntroOverlay({ game, onBegin }: Props) {
   }
 
   return (
-    <div style={styles.overlay} role="dialog" aria-modal="true" aria-labelledby="adventure-title">
-      <div style={styles.card}>
+    <div className="intro-overlay" style={styles.overlay} role="dialog" aria-modal="true" aria-labelledby="adventure-title">
+      <div className="intro-card" style={styles.card}>
         <div style={styles.eyebrow}>A NEW ADVENTURE</div>
         <h1 id="adventure-title" style={styles.title}>{game.bible?.title ?? 'Find Mama Pig!'}</h1>
         <p style={styles.story}>{game.bible?.narratorIntro}</p>

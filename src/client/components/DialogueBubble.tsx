@@ -10,6 +10,7 @@ interface Props {
   hintAlreadyCollected: boolean
   onClueGranted: (hintId: string) => void
   onClose: () => void
+  onAskMama?: () => boolean
 }
 
 interface ChatLine {
@@ -33,6 +34,7 @@ export function DialogueBubble({
   hintAlreadyCollected,
   onClueGranted,
   onClose,
+  onAskMama,
 }: Props) {
   const [history, setHistory] = useState<ChatLine[]>(preloadedOpener
     ? [{ speaker: npc.name, text: preloadedOpener.reply }]
@@ -44,9 +46,14 @@ export function DialogueBubble({
   const [error, setError] = useState('')
   const [audioUrl, setAudioUrl] = useState<string | null>(preloadedOpener?.audioUrl ?? null)
   const [viewMode, setViewMode] = useState<'glass' | 'compact'>('glass')
+  const [recording, setRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
   const started = useRef(false)
   const knowsHint = useRef(hintAlreadyCollected)
   const transcriptRef = useRef<HTMLDivElement>(null)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const recordingWanted = useRef(false)
+  const audioChunks = useRef<Blob[]>([])
 
   async function requestTurn(
     message: string,
@@ -121,10 +128,95 @@ export function DialogueBubble({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  useEffect(() => () => {
+    recordingWanted.current = false
+    const recorder = recorderRef.current
+    if (recorder?.state === 'recording') recorder.stop()
+    recorder?.stream.getTracks().forEach(track => track.stop())
+  }, [])
+
+  async function startRecording(event: React.PointerEvent<HTMLButtonElement>) {
+    event.preventDefault()
+    if (loading || transcribing || recording) return
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setError('Voice input is not available in this browser. You can still type below.')
+      return
+    }
+    recordingWanted.current = true
+    setError('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      if (!recordingWanted.current) {
+        stream.getTracks().forEach(track => track.stop())
+        return
+      }
+      const preferredType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : ''
+      const recorder = new MediaRecorder(stream, preferredType ? { mimeType: preferredType } : undefined)
+      recorderRef.current = recorder
+      audioChunks.current = []
+      recorder.ondataavailable = chunkEvent => {
+        if (chunkEvent.data.size) audioChunks.current.push(chunkEvent.data)
+      }
+      recorder.onstop = async () => {
+        setRecording(false)
+        stream.getTracks().forEach(track => track.stop())
+        const blob = new Blob(audioChunks.current, { type: recorder.mimeType || 'audio/webm' })
+        if (!blob.size) return
+        setTranscribing(true)
+        try {
+          const response = await fetch('/api/transcribe', {
+            method: 'POST',
+            headers: { 'Content-Type': blob.type || 'audio/webm' },
+            body: blob,
+          })
+          if (!response.ok) throw new Error('I could not hear that clearly.')
+          const result: { text?: string } = await response.json()
+          const transcript = result.text?.trim()
+          if (!transcript) throw new Error('I could not hear any words. Try once more.')
+          stopAudio()
+          if (/\b(mama|mother|help.*find|seen her)\b/i.test(transcript) && onAskMama?.()) {
+            speakText(transcript).finally(onClose)
+          } else {
+            requestTurn(transcript, 'typed')
+          }
+        } catch (voiceError) {
+          setError(voiceError instanceof Error ? voiceError.message : 'Voice input paused unexpectedly.')
+        } finally {
+          setTranscribing(false)
+          recorderRef.current = null
+        }
+      }
+      recorder.start()
+      setRecording(true)
+      ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
+    } catch {
+      recordingWanted.current = false
+      setError('Microphone access is needed for voice input. You can still type below.')
+    }
+  }
+
+  function stopRecording(event?: React.PointerEvent<HTMLButtonElement>) {
+    event?.preventDefault()
+    recordingWanted.current = false
+    const recorder = recorderRef.current
+    if (recorder?.state === 'recording') recorder.stop()
+  }
+
   function choose(suggestion: SuggestedNPCReply) {
     if (suggestion.intent === 'goodbye') {
       stopAudio()
       onClose()
+      return
+    }
+    if (suggestion.intent === 'ask_mama' && onAskMama) {
+      stopAudio()
+      const playerSpeech = speakText(suggestion.text)
+      playerSpeech.then(() => {
+        if (onAskMama()) onClose()
+        else requestTurn(suggestion.text, 'suggestion', suggestion.intent)
+      })
       return
     }
     stopAudio()
@@ -137,6 +229,11 @@ export function DialogueBubble({
     const message = input.trim()
     if (!message || loading) return
     setInput('')
+    if (/\b(mama|mother|help.*find|seen her)\b/i.test(message) && onAskMama?.()) {
+      stopAudio()
+      speakText(message).finally(onClose)
+      return
+    }
     requestTurn(message, 'typed')
   }
 
@@ -161,9 +258,9 @@ export function DialogueBubble({
     : [...normalizedSuggestions, { text: 'Leave conversation', intent: 'goodbye' as const }]
 
   return (
-    <div style={styles.overlay} role="dialog" aria-label={`Talking to ${npc.name}`}>
-      <div style={{ ...styles.panel, ...(viewMode === 'compact' ? styles.panelCompact : {}) }}>
-        <div style={styles.header}>
+    <div className="dialogue-overlay" style={styles.overlay} role="dialog" aria-label={`Talking to ${npc.name}`}>
+      <div className={`dialogue-panel ${viewMode === 'compact' ? 'dialogue-panel-compact' : ''}`} style={{ ...styles.panel, ...(viewMode === 'compact' ? styles.panelCompact : {}) }}>
+        <div className="dialogue-header" style={styles.header}>
           <div style={styles.identity}>
             <div style={styles.portrait} aria-hidden="true">{moodEmoji[mood]}</div>
             <div>
@@ -171,7 +268,7 @@ export function DialogueBubble({
               <div style={styles.personality}>{npc.personality} {npc.species}</div>
             </div>
           </div>
-          <div style={styles.headerActions}>
+          <div className="dialogue-header-actions" style={styles.headerActions}>
             <button
               style={styles.viewBtn}
               onClick={() => setViewMode(mode => mode === 'glass' ? 'compact' : 'glass')}
@@ -188,7 +285,7 @@ export function DialogueBubble({
           </div>
         </div>
 
-        <div ref={transcriptRef} style={styles.transcript} aria-live="polite">
+        <div className="dialogue-transcript" ref={transcriptRef} style={styles.transcript} aria-live="polite">
           {history.map((line, index) => (
             <div key={`${line.speaker}-${index}`} style={{
               ...styles.line,
@@ -207,8 +304,13 @@ export function DialogueBubble({
         </div>
 
         {error && <div style={styles.error}>{error}</div>}
+        {(recording || transcribing) && (
+          <div className="dialogue-voice-status" style={styles.voiceStatus} aria-live="polite">
+            {recording ? '🎙️ Listening… release when you are done' : '✨ Turning your voice into words…'}
+          </div>
+        )}
 
-        <div style={styles.suggestions}>
+        <div className="dialogue-suggestions" style={styles.suggestions}>
           {chatOptions.map((suggestion, index) => (
             <button
               key={`${suggestion.text}-${index}`}
@@ -225,7 +327,19 @@ export function DialogueBubble({
           ))}
         </div>
 
-        <form style={styles.inputRow} onSubmit={submit}>
+        <form className="dialogue-input-row" style={styles.inputRow} onSubmit={submit}>
+          <button
+            className="dialogue-mic-button"
+            style={{ ...styles.micBtn, ...(recording ? styles.micBtnRecording : {}) }}
+            type="button"
+            onPointerDown={startRecording}
+            onPointerUp={stopRecording}
+            onPointerCancel={stopRecording}
+            onContextMenu={event => event.preventDefault()}
+            disabled={loading || transcribing}
+            aria-label="Hold to talk"
+            title="Hold to talk"
+          >{recording ? '●' : '🎙️'}</button>
           <input
             style={styles.input}
             value={input}
@@ -304,6 +418,18 @@ const styles: Record<string, React.CSSProperties> = {
   },
   choiceNumber: { color: '#d27754', fontWeight: 950, marginRight: 4 },
   inputRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  voiceStatus: {
+    padding: '8px 11px', borderRadius: 11, background: 'rgba(255,240,201,0.92)',
+    color: '#74500f', fontSize: 12, fontWeight: 850, textAlign: 'center',
+  },
+  micBtn: {
+    border: 0, borderRadius: 99, width: 44, height: 44, flex: '0 0 44px',
+    background: '#fff0d6', color: '#9a553a', fontSize: 17, cursor: 'pointer', touchAction: 'none',
+  },
+  micBtnRecording: {
+    background: '#e4574e', color: 'white', boxShadow: '0 0 0 5px rgba(228,87,78,0.2)',
+    animation: 'look-pulse 0.9s ease-in-out infinite',
+  },
   input: {
     flex: 1, minWidth: 0, border: '2px solid #efddd1', borderRadius: 99, background: '#faf5ee',
     padding: '13px 17px', color: '#493b32', fontSize: 14, outline: 'none',

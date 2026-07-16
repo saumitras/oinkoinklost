@@ -5,9 +5,10 @@ import { playAudio } from '../game/audio'
 interface Props {
   game: Game
   onNewAdventure: () => void
+  accomplishments?: string[]
 }
 
-export function ReunionScene({ game, onNewAdventure }: Props) {
+export function ReunionScene({ game, onNewAdventure, accomplishments = [] }: Props) {
   const [photoUrl, setPhotoUrl] = useState(game.assets.reunionPhotoUrl)
 
   // Poll for reunion photo if not ready yet
@@ -44,7 +45,7 @@ export function ReunionScene({ game, onNewAdventure }: Props) {
   }
 
   return (
-    <div style={styles.overlay}>
+    <div className="reunion-overlay" style={styles.overlay}>
       <div style={styles.confetti} aria-hidden="true">
         {Array.from({ length: 28 }, (_, i) => (
           <span key={i} style={{
@@ -56,17 +57,30 @@ export function ReunionScene({ game, onNewAdventure }: Props) {
           }} />
         ))}
       </div>
-      <div style={styles.card}>
+      <div className="reunion-card" style={styles.card}>
         <div style={styles.badge}>MYSTERY SOLVED · 3 CLUES FOUND</div>
         <div style={styles.emoji}>🐷💛🐷</div>
         <h2 style={styles.title}>You found Mama!</h2>
         {photoUrl ? (
-          <img src={photoUrl} alt="Reunion" style={styles.photo} />
+          <div style={styles.photoFrame}>
+            <img className="reunion-photo" src={photoUrl} alt="Reunion" style={styles.photo} />
+            <div style={styles.photoGlow} aria-hidden="true">✨</div>
+          </div>
         ) : (
           <div style={styles.photoPlaceholder}>📸 Developing your photo…</div>
         )}
         {game.bible && (
           <p style={styles.reunionLine}>{game.bible.reunionLine}</p>
+        )}
+        {accomplishments.length > 0 && (
+          <div style={styles.memories}>
+            <strong>Piglet's adventure memories</strong>
+            <div style={styles.memoryBadges}>
+              {accomplishments.map((memory, index) => (
+                <span key={memory} style={styles.memoryBadge}>{['🌾', '🥧', '🍎'][index % 3]} {memory}</span>
+              ))}
+            </div>
+          </div>
         )}
         <div style={styles.actions}>
           <button style={styles.shareBtn} onClick={shareAdventure}>📮 Share postcard</button>
@@ -105,7 +119,9 @@ const styles: Record<string, React.CSSProperties> = {
   badge: { fontSize: 11, letterSpacing: 1.2, fontWeight: 900, color: '#bb7658', marginBottom: 10 },
   emoji: { fontSize: 56, marginBottom: 8 },
   title: { fontSize: 28, fontWeight: 800, color: '#e07b54', margin: '0 0 20px' },
-  photo: { width: '100%', borderRadius: 16, marginBottom: 20 },
+  photoFrame: { position: 'relative', overflow: 'hidden', borderRadius: 16, marginBottom: 20, background: '#f5e6d3' },
+  photo: { display: 'block', width: '100%', borderRadius: 16, animation: 'reunion-zoom 7s ease-out both' },
+  photoGlow: { position: 'absolute', right: 14, top: 10, fontSize: 34, animation: 'bounce 1.8s ease-in-out infinite' },
   photoPlaceholder: {
     width: '100%',
     height: 200,
@@ -119,6 +135,12 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 20,
   },
   reunionLine: { fontSize: 18, color: '#555', lineHeight: 1.6, margin: '0 0 24px' },
+  memories: {
+    display: 'grid', gap: 9, margin: '-7px 0 22px', padding: 12, borderRadius: 15,
+    background: '#fff6df', color: '#67472e', fontSize: 13,
+  },
+  memoryBadges: { display: 'flex', justifyContent: 'center', gap: 7, flexWrap: 'wrap' },
+  memoryBadge: { padding: '7px 10px', borderRadius: 99, background: 'white', fontWeight: 800, boxShadow: '0 2px 6px rgba(80,50,20,0.1)' },
   btn: {
     padding: '14px 32px',
     fontSize: 18,

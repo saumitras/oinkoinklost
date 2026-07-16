@@ -1,12 +1,13 @@
 import asyncio
 import hashlib
 import json
+import random
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal, Optional
 from nanoid import generate as nanoid
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,7 +16,10 @@ from server.config import ASSETS_DIR, PORT
 from server.pipeline import run_pipeline, pick_random_idea, spawn_task
 from server.gamestore import get_or_load_game, set_game, snapshot_game
 from server.events import subscribe, unsubscribe, emit
-from server.ai import build_npc_opener, moderate_idea, generate_reunion_photo, generate_npc_reply, generate_tts
+from server.ai import (
+    build_npc_opener, moderate_idea, generate_reunion_photo,
+    generate_npc_reply, generate_tts, transcribe_audio,
+)
 from server.schema import NPCModelReply, PreloadedNPCReply, SuggestedReply
 from server.storage import save_asset
 
@@ -84,6 +88,34 @@ PRESET_WORLDS = {
 }
 
 
+def apply_pumpkin_mystery_variant(game) -> None:
+    """Reuse the same art with a different truthful Mama location each play."""
+    if not game.bible:
+        return
+    candidates = game.bible.candidateLocations
+    if len(candidates) < 4:
+        return
+
+    final = random.choice(candidates)
+    game.bible.finalLocationId = final.id
+    game.bible.finalLocationBuildingId = final.id
+    alternatives = [candidate for candidate in candidates if candidate.id != final.id]
+    sounds = {"cow": "Moo", "goat": "Baa", "duck": "Quack"}
+    random.shuffle(alternatives)
+    for hint, eliminated in zip(game.bible.hints, alternatives):
+        sound = sounds.get(hint.npcId, "Hmm")
+        hint.text = f"{sound}! I am sure Mama did not stop at {eliminated.name}."
+        hint.eliminatesLocationIds = [eliminated.id]
+        # The shipped clip describes the template's original mystery. Dynamic
+        # dialogue speaks this playthrough's variant; replay falls back to the
+        # browser voice so no additional generation is needed.
+        game.assets.audio.pop(f"npc_{hint.npcId}.hint", None)
+    game.bible.verification = (
+        f"This playthrough eliminates {', '.join(candidate.name for candidate in alternatives)}, "
+        f"leaving only {final.name}."
+    )
+
+
 @app.post("/api/game", status_code=201)
 async def start_game(body: StartGameBody):
     idea = body.idea.strip() or pick_random_idea()
@@ -131,6 +163,8 @@ async def start_preset(slug: str):
     game.id = nanoid()
     game.createdAt = datetime.now(timezone.utc).isoformat()
     game.fromWarmPool = True
+    if slug == "pumpkin-farm":
+        apply_pumpkin_mystery_variant(game)
     for npc in game.bible.npcs:  # type: ignore[union-attr]
         if npc.id not in game.assets.npcOpeners:
             opener = build_npc_opener(npc, game.bible)
@@ -197,6 +231,20 @@ async def get_game(game_id: str):
     if not game:
         raise HTTPException(status_code=404)
     return game.model_dump()
+
+
+@app.post("/api/transcribe")
+async def transcribe(request: Request):
+    audio = await request.body()
+    if not audio:
+        raise HTTPException(status_code=400, detail="empty_audio")
+    content_type = request.headers.get("content-type", "audio/webm").split(";", 1)[0]
+    try:
+        text = await transcribe_audio(audio, content_type)
+    except Exception as exc:
+        print(f"[transcribe] {exc}")
+        raise HTTPException(status_code=502, detail="transcription_failed") from exc
+    return {"text": text}
 
 
 @app.post("/api/game/{game_id}/npcs/{npc_id}/chat")

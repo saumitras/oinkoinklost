@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { playAudio } from '../game/audio'
+import { playAudio, speakText } from '../game/audio'
 import type { Game } from '@shared/schema'
+import { pumpkinQuestForNpc } from '../game/pumpkinQuests'
 
 interface Props {
   game: Game
@@ -33,7 +34,8 @@ export function HintTracker({ game, collectedHintIds, embedded = false, forceExp
     )
     if (!npc) return
     const url = game.assets.audio[`npc_${npc.id}.hint`]
-    if (url) playAudio(url).catch(() => {})
+    if (url) playAudio(url).catch(() => speakText(game.bible!.hints.find(hint => hint.id === hintId)?.text ?? ''))
+    else speakText(game.bible!.hints.find(hint => hint.id === hintId)?.text ?? '')
   }
 
   function toggleExpanded() {
@@ -43,7 +45,7 @@ export function HintTracker({ game, collectedHintIds, embedded = false, forceExp
   }
 
   return (
-    <div style={{ ...styles.container, ...(embedded ? styles.embeddedContainer : {}) }}>
+    <div className={`hint-tracker${embedded ? ' hint-tracker-embedded' : ''}`} style={{ ...styles.container, ...(embedded ? styles.embeddedContainer : {}) }}>
       <button
         style={styles.header}
         onClick={toggleExpanded}
@@ -63,6 +65,9 @@ export function HintTracker({ game, collectedHintIds, embedded = false, forceExp
         <div style={styles.list}>
           {game.bible.hints.map((hint, i) => {
             const collected = collectedHintIds.includes(hint.id)
+            const quest = pumpkinQuestForNpc(game, hint.npcId)
+            const clueObject = quest?.objects.find(object => object.correct)
+            const roomImage = quest ? game.assets.rooms[quest.roomId]?.imageUrl : undefined
             return (
               <button
                 key={hint.id}
@@ -71,7 +76,18 @@ export function HintTracker({ game, collectedHintIds, embedded = false, forceExp
                 disabled={!collected}
                 aria-label={collected ? `Clue ${i + 1}: ${hint.text}. Replay audio` : `Clue ${i + 1} not found`}
               >
-                <span style={styles.clueNumber}>{collected ? '✓' : i + 1}</span>
+                {collected && roomImage && clueObject ? (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      ...styles.clueCrop,
+                      backgroundImage: `url(${roomImage})`,
+                      backgroundPosition: `${(clueObject.x / 1024) * 100}% ${(clueObject.y / 1024) * 100}%`,
+                    }}
+                  />
+                ) : (
+                  <span style={styles.clueNumber}>{collected ? '✓' : i + 1}</span>
+                )}
                 <span>{collected ? hint.text : `Find marker ${i + 1} on the map`}</span>
                 {collected && <span aria-hidden="true">🔊</span>}
               </button>
@@ -112,7 +128,7 @@ const styles: Record<string, React.CSSProperties> = {
   pipFound: { background: '#f2a24b' },
   list: { display: 'grid', gap: 8, marginTop: 10 },
   clue: {
-    display: 'grid', gridTemplateColumns: '28px 1fr auto', alignItems: 'center', gap: 9,
+    display: 'grid', gridTemplateColumns: '44px 1fr auto', alignItems: 'center', gap: 9,
     width: '100%', border: 0, borderRadius: 12, padding: '10px 11px', textAlign: 'left',
     background: '#f5f0ea', color: '#9c8d81', fontSize: 13, lineHeight: 1.35,
   },
@@ -120,5 +136,10 @@ const styles: Record<string, React.CSSProperties> = {
   clueNumber: {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 25, height: 25,
     borderRadius: 99, background: '#e9ddd1', color: '#8e7967', fontWeight: 900,
+  },
+  clueCrop: {
+    display: 'block', width: 42, height: 42, borderRadius: 11,
+    backgroundSize: '410% 410%', backgroundRepeat: 'no-repeat',
+    border: '2px solid rgba(255,255,255,0.92)', boxShadow: '0 2px 7px rgba(91,58,30,0.18)',
   },
 }

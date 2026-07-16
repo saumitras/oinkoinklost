@@ -4,6 +4,7 @@ import { nearestDoor, WORLD_W, WORLD_H, ROOM_BAND, CELL_SIZE } from './collision
 import { attachKeyboard, detachKeyboard, getAxis } from './input'
 import { footstep } from './audio'
 import type { Game } from '@shared/schema'
+import type { QuestObject } from './pumpkinQuests'
 
 const SPEED = 220
 const PLAYER_HEIGHT = 96
@@ -26,6 +27,8 @@ let bobT = 0
 let animT = 0
 let moving = false
 let stepT = 0
+let moveTarget: { x: number; y: number } | null = null
+let engineCanvas: HTMLCanvasElement | null = null
 
 type SceneKind = { kind: 'street' } | { kind: 'room'; buildingId: string }
 let scene: SceneKind = { kind: 'street' }
@@ -46,6 +49,8 @@ let npcMarker: Container | null = null
 let exitMarker: Container | null = null
 let npcCenter = { x: WORLD_W / 2, y: WORLD_H / 2 }
 let exitPos = { x: WORLD_W / 2, y: WORLD_H - 60 }
+let activeQuestObjects: QuestObject[] = []
+const questMarkers = new Map<string, Container>()
 
 export async function initEngine(container: HTMLDivElement): Promise<void> {
   if (initPromise) await initPromise.catch(() => {})
@@ -65,10 +70,13 @@ export async function initEngine(container: HTMLDivElement): Promise<void> {
   await initPromise
   app = newApp
   const canvas = newApp.canvas
+  engineCanvas = canvas
   canvas.style.width = '100%'
   canvas.style.height = '100%'
   canvas.style.display = 'block'
   canvas.style.objectFit = 'contain'
+  canvas.style.touchAction = 'none'
+  canvas.addEventListener('pointerdown', onCanvasPointerDown)
   container.replaceChildren(canvas)
   attachKeyboard()
   window.addEventListener('keydown', onDebugKey)
@@ -92,7 +100,26 @@ export function destroyEngine() {
   mamaGlow = null
   npcMarker = null
   exitMarker = null
+  activeQuestObjects = []
+  questMarkers.clear()
   initPromise = null
+  if (engineCanvas) engineCanvas.removeEventListener('pointerdown', onCanvasPointerDown)
+  engineCanvas = null
+  moveTarget = null
+}
+
+function onCanvasPointerDown(event: PointerEvent) {
+  if (!engineCanvas) return
+  const rect = engineCanvas.getBoundingClientRect()
+  const scale = Math.min(rect.width / WORLD_W, rect.height / WORLD_H)
+  const renderedWidth = WORLD_W * scale
+  const renderedHeight = WORLD_H * scale
+  const offsetX = (rect.width - renderedWidth) / 2
+  const offsetY = (rect.height - renderedHeight) / 2
+  const x = (event.clientX - rect.left - offsetX) / scale
+  const y = (event.clientY - rect.top - offsetY) / scale
+  if (x < 0 || x > WORLD_W || y < 0 || y > WORLD_H) return
+  moveTarget = { x, y }
 }
 
 async function loadPlayerTextures(game: Game) {
@@ -157,6 +184,8 @@ export async function loadStreetScene(game: Game) {
   lookMarkerIds.clear()
   npcMarker = null
   exitMarker = null
+  activeQuestObjects = []
+  questMarkers.clear()
 
   const bg = new Sprite(bgTex)
   bg.width = WORLD_W
@@ -250,6 +279,8 @@ export async function loadRoomScene(game: Game, buildingId: string) {
   doorMarkers.clear()
   lookMarkerIds.clear()
   mamaGlow = null
+  activeQuestObjects = []
+  questMarkers.clear()
 
   const bg = new Sprite(bgTex)
   bg.width = WORLD_W
@@ -280,6 +311,49 @@ export async function loadRoomScene(game: Game, buildingId: string) {
   useGameStore.getState().setPlayerPos({ x: player.x, y: player.y })
 }
 
+export function setRoomQuestObjects(objects: QuestObject[] | null) {
+  activeQuestObjects = objects ?? []
+  for (const marker of questMarkers.values()) {
+    marker.removeFromParent()
+    marker.destroy({ children: true })
+  }
+  questMarkers.clear()
+  if (!app || scene.kind !== 'room') return
+
+  for (const object of activeQuestObjects) {
+    const marker = new Container()
+    const ring = new Graphics()
+      .circle(0, 0, 31)
+      .fill({ color: 0xffdc54, alpha: 0.2 })
+      .stroke({ color: 0xffffff, alpha: 0.95, width: 4 })
+    const sparkle = new Text({
+      text: '✨',
+      style: { fontSize: 34, dropShadow: { color: 0x6b3c00, alpha: 0.5, blur: 4, distance: 2 } },
+    })
+    sparkle.anchor.set(0.5)
+    marker.addChild(ring, sparkle)
+    marker.position.set(object.x, object.y)
+    questMarkers.set(object.id, marker)
+    app.stage.addChild(marker)
+  }
+}
+
+export function showRoomQuestCompletion(object: QuestObject | undefined) {
+  setRoomQuestObjects(null)
+  if (!app || scene.kind !== 'room' || !object) return
+  const marker = new Container()
+  const badge = new Graphics()
+    .circle(0, 0, 30)
+    .fill({ color: 0x4fa96f, alpha: 0.92 })
+    .stroke({ color: 0xffffff, alpha: 0.96, width: 5 })
+  const check = new Text({ text: '✓', style: { fontSize: 36, fontWeight: '900', fill: 0xffffff } })
+  check.anchor.set(0.5)
+  marker.addChild(badge, check)
+  marker.position.set(object.x, object.y)
+  questMarkers.set(`completed_${object.id}`, marker)
+  app.stage.addChild(marker)
+}
+
 // ── Ticker ────────────────────────────────────────────────────────────────────
 function tick(ticker: { deltaMS: number }) {
   if (!app || !playerSprite) return
@@ -288,7 +362,20 @@ function tick(ticker: { deltaMS: number }) {
   const { game } = store
   if (!game) return
 
-  const { vx, vy } = getAxis()
+  let { vx, vy } = getAxis()
+  if (vx !== 0 || vy !== 0) {
+    moveTarget = null
+  } else if (moveTarget) {
+    const dx = moveTarget.x - player.x
+    const dy = moveTarget.y - player.y
+    const distance = Math.hypot(dx, dy)
+    if (distance < 10) {
+      moveTarget = null
+    } else {
+      vx = dx / distance
+      vy = dy / distance
+    }
+  }
   moving = vx !== 0 || vy !== 0
 
   if (moving) {
@@ -390,7 +477,28 @@ function tick(ticker: { deltaMS: number }) {
     }
     if (exitMarker) exitMarker.visible = dExit < EXIT_RADIUS
 
-    if (dNpc < NPC_RADIUS && npc) {
+    let closestQuest: QuestObject | undefined
+    let closestQuestDistance = Number.POSITIVE_INFINITY
+    for (const object of activeQuestObjects) {
+      // The artwork can place an object on a high shelf while Piglet walks
+      // only along the open floor. Interact from the floor directly beneath it.
+      const approachY = Math.max(ROOM_BAND.minY + 55, Math.min(ROOM_BAND.maxY - 45, object.y))
+      const distance = Math.hypot(object.x - player.x, approachY - player.y)
+      const marker = questMarkers.get(object.id)
+      if (marker) {
+        const pulse = 1 + Math.sin(animT * 4 + object.x * 0.01) * 0.12
+        marker.scale.set(pulse)
+        marker.alpha = distance < 145 ? 1 : 0.72
+      }
+      if (distance < 118 && distance < closestQuestDistance) {
+        closestQuest = object
+        closestQuestDistance = distance
+      }
+    }
+
+    if (closestQuest) {
+      nearby = { kind: 'quest', objectId: closestQuest.id, label: `✨ Inspect ${closestQuest.label}` }
+    } else if (dNpc < NPC_RADIUS && npc) {
       nearby = { kind: 'npc', npcId: npc.id, label: `💬 Talk to ${npc.name}` }
     } else if (dExit < EXIT_RADIUS) {
       nearby = { kind: 'exit', label: '🚪 Go outside' }

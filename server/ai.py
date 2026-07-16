@@ -9,7 +9,10 @@ from openai import AsyncOpenAI
 from google import genai
 from google.genai import types as genai_types
 
-from server.config import OPENAI_API_KEY, GEMINI_API_KEY, TEXT_MODEL, NPC_MODEL, IMAGE_MODEL, TTS_MODEL, MODERATION_MODEL
+from server.config import (
+    OPENAI_API_KEY, GEMINI_API_KEY, TEXT_MODEL, NPC_MODEL, IMAGE_MODEL,
+    TTS_MODEL, TRANSCRIBE_MODEL, MODERATION_MODEL,
+)
 from server.cache import cache_get_bytes, cache_set_bytes, cache_get_json, cache_set_json
 from server.schema import GameBible, ScreenAnnotation, RoomAnnotation, NPCModelReply, NPC, SuggestedReply
 from server.schema_utils import make_strict_schema
@@ -588,6 +591,16 @@ async def generate_tts(text: str, voice: str) -> bytes:
     data = response.read()
     cache_set_bytes("tts", f"{voice}:{text}", data)
     return data
+
+
+async def transcribe_audio(audio: bytes, content_type: str = "audio/webm") -> str:
+    extension = "mp4" if "mp4" in content_type else "webm"
+    response = await openai_client.audio.transcriptions.create(
+        model=TRANSCRIBE_MODEL,
+        file=(f"piglet.{extension}", audio, content_type),
+        prompt="A young player is speaking to a friendly animal in the game Oink Oink Lost. Mama means Mama Pig.",
+    )
+    return response.text.strip()
 
 
 # ── Moderation ────────────────────────────────────────────────────────────────
