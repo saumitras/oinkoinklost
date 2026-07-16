@@ -1,0 +1,313 @@
+import asyncio
+import hashlib
+import json
+import shutil
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Literal, Optional
+from nanoid import generate as nanoid
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from server.config import ASSETS_DIR, PORT
+from server.pipeline import run_pipeline, pick_random_idea, spawn_task
+from server.gamestore import get_or_load_game, set_game, snapshot_game
+from server.events import subscribe, unsubscribe, emit
+from server.ai import moderate_idea, generate_reunion_photo, generate_npc_reply, generate_tts
+from server.schema import NPCModelReply, SuggestedReply
+from server.storage import save_asset
+
+app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Docker ships three curated adventures separately from the writable asset
+# volume. Seed any missing templates before mounting the public asset route.
+PRESET_ASSETS_DIR = Path(__file__).resolve().parent.parent / "preset-assets" / "games"
+if PRESET_ASSETS_DIR.exists():
+    for preset_dir in PRESET_ASSETS_DIR.iterdir():
+        if preset_dir.is_dir():
+            shutil.copytree(preset_dir, ASSETS_DIR / "games" / preset_dir.name, dirs_exist_ok=True)
+
+app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+
+
+class StartGameBody(BaseModel):
+    idea: str = ""
+
+
+class SolveBody(BaseModel):
+    locationId: str
+
+
+class NPCChatBody(BaseModel):
+    sessionId: str
+    message: str = ""
+    source: Literal["start", "suggestion", "typed"] = "typed"
+    intent: Optional[Literal["ask_mama", "small_talk", "goodbye"]] = None
+    hintAlreadyCollected: bool = False
+
+
+# Short-lived dev-mode memory. A session is stable while the current adventure
+# remains mounted, including when the player leaves and revisits an NPC.
+_npc_sessions: dict[str, dict] = {}
+
+PRESET_WORLDS = {
+    "pumpkin-farm": {
+        "templateId": "76VwFrCWC21dOuUiBJWhA",
+        "title": "Pumpkin Farm",
+        "subtitle": "Autumn paths, cider, and cozy barns",
+        "emoji": "🎃",
+    },
+    "seaside-village": {
+        "templateId": "DS1Wm9QZ2cHIblaVfvLDx",
+        "title": "Seaside Village",
+        "subtitle": "Shell cottages and salty little clues",
+        "emoji": "🐚",
+    },
+    "dino-party": {
+        "templateId": "B9888D_mmeb8VQ1H84jVq",
+        "title": "Dinosaur Party",
+        "subtitle": "Balloons, presents, and dino friends",
+        "emoji": "🦕",
+    },
+}
+
+
+@app.post("/api/game", status_code=201)
+async def start_game(body: StartGameBody):
+    idea = body.idea.strip() or pick_random_idea()
+
+    flagged = await moderate_idea(idea)
+    if flagged:
+        raise HTTPException(status_code=403, detail={
+            "error": "idea_flagged",
+            "suggestions": ["a pumpkin farm in autumn", "a tiny seaside village", "a dinosaur birthday party"],
+        })
+
+    game = await run_pipeline(idea)
+    return {"gameId": game.id}
+
+
+@app.get("/api/presets")
+async def list_presets():
+    presets = []
+    for slug, meta in PRESET_WORLDS.items():
+        template = get_or_load_game(meta["templateId"])
+        if not template or not template.assets.streetUrl:
+            continue
+        presets.append({
+            "slug": slug,
+            "title": meta["title"],
+            "subtitle": meta["subtitle"],
+            "emoji": meta["emoji"],
+            "previewUrl": template.assets.streetUrl,
+        })
+    return presets
+
+
+@app.post("/api/presets/{slug}", status_code=201)
+async def start_preset(slug: str):
+    meta = PRESET_WORLDS.get(slug)
+    if not meta:
+        raise HTTPException(status_code=404, detail="preset_not_found")
+    template = get_or_load_game(meta["templateId"])
+    if not template or template.status != "playable":
+        raise HTTPException(status_code=503, detail="preset_unavailable")
+
+    # Clone only lightweight game state. Asset URLs continue pointing at the
+    # immutable pre-generated template files, so starting costs no AI calls.
+    game = template.model_copy(deep=True)
+    game.id = nanoid()
+    game.createdAt = datetime.now(timezone.utc).isoformat()
+    game.fromWarmPool = True
+    set_game(game)
+    snapshot_game(game)
+    return {"gameId": game.id, "preset": slug}
+
+
+@app.get("/api/game/{game_id}/events")
+async def game_events(game_id: str):
+    game = get_or_load_game(game_id)
+    if not game:
+        raise HTTPException(status_code=404)
+
+    async def stream():
+        # Subscribe BEFORE replaying so no events are lost in between
+        q = subscribe(game_id)
+
+        # Replay current state for (re)connects
+        for stage, status in game.stages.items():
+            if status in ("done", "failed"):
+                meta = {}
+                if stage == "street" and game.assets.streetUrl:
+                    meta = {"meta": {"url": game.assets.streetUrl}}
+                elif stage == "character" and game.assets.characterFrontUrl:
+                    meta = {"meta": {"url": game.assets.characterFrontUrl}}
+                elif stage == "bible" and game.bible:
+                    meta = {"meta": {"title": game.bible.title}}
+                yield f"event: stage\ndata: {json.dumps({'type':'stage','stage':stage,'status':status, **meta})}\n\n"
+        if game.status == "playable":
+            yield f"event: playable\ndata: {json.dumps({'type':'playable'})}\n\n"
+        if game.status == "failed":
+            yield f"event: failed\ndata: {json.dumps({'type':'failed','message':'Generation failed'})}\n\n"
+            unsubscribe(game_id, q)
+            return
+        if game.status == "playable" and all(s in ("done", "failed") for s in game.stages.values()):
+            yield f"event: done\ndata: {json.dumps({'type':'done'})}\n\n"
+            unsubscribe(game_id, q)
+            return
+
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(q.get(), timeout=30)
+                    yield f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
+                    if event["type"] in ("done", "failed"):
+                        break
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+        finally:
+            unsubscribe(game_id, q)
+
+    return StreamingResponse(stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.get("/api/game/{game_id}")
+async def get_game(game_id: str):
+    game = get_or_load_game(game_id)
+    if not game:
+        raise HTTPException(status_code=404)
+    return game.model_dump()
+
+
+@app.post("/api/game/{game_id}/npcs/{npc_id}/chat")
+async def npc_chat(game_id: str, npc_id: str, body: NPCChatBody):
+    game = get_or_load_game(game_id)
+    if not game or not game.bible:
+        raise HTTPException(status_code=404)
+
+    npc = next((n for n in game.bible.npcs if n.id == npc_id), None)
+    hint = next((h for h in game.bible.hints if h.npcId == npc_id), None)
+    if not npc or not hint:
+        raise HTTPException(status_code=404, detail="npc_not_found")
+
+    session_key = f"{game_id}:{npc_id}:{body.sessionId}"
+    state = _npc_sessions.setdefault(session_key, {
+        "history": [],
+        "userTurns": 0,
+        "clueGranted": body.hintAlreadyCollected,
+    })
+    if body.hintAlreadyCollected:
+        state["clueGranted"] = True
+
+    message = body.message.strip()
+    if body.source != "start" and message:
+        state["userTurns"] += 1
+        state["history"].append({"role": "Piglet", "text": message})
+
+    asks_for_mama = body.intent == "ask_mama" or any(
+        phrase in message.lower()
+        for phrase in ("mama", "mother", "help me", "help find", "seen her", "clue")
+    )
+    should_grant = (
+        not state["clueGranted"]
+        and not body.hintAlreadyCollected
+        and (asks_for_mama or state["userTurns"] >= 2)
+    )
+
+    try:
+        turn = await generate_npc_reply(
+            game.bible,
+            npc_id,
+            message,
+            state["history"],
+            must_reveal_hint=should_grant,
+            hint_already_collected=bool(state["clueGranted"]),
+        )
+    except Exception as e:
+        # Keep the prototype playable while prompts/models are being iterated.
+        print(f"[npc-chat:{game_id}:{npc_id}] {e}")
+        if should_grant:
+            reply = f"{npc.conversation.clueLeadIn} {hint.text}"
+        elif body.source == "start":
+            reply = npc.lines.greeting
+        else:
+            reply = npc.lines.idle
+        turn = NPCModelReply(
+            reply=reply,
+            suggestedReplies=[
+                SuggestedReply(text="Have you seen Mama?", intent="ask_mama"),
+                SuggestedReply(text=f"Tell me about {npc.conversation.favoriteTopic}.", intent="small_talk"),
+                SuggestedReply(text="See you soon!", intent="goodbye"),
+            ],
+            mood="helpful" if should_grant else "cheerful",
+            conversationComplete=False,
+        )
+
+    if should_grant:
+        state["clueGranted"] = True
+    state["history"].append({"role": npc.name, "text": turn.reply})
+    state["history"] = state["history"][-10:]
+
+    audio_url = None
+    try:
+        audio = await generate_tts(turn.reply, npc.ttsVoice or "alloy")
+        digest = hashlib.sha256(f"{npc_id}:{turn.reply}".encode()).hexdigest()[:16]
+        audio_url = save_asset(f"games/{game.id}/audio/chat_{digest}.mp3", audio)
+    except Exception as e:
+        print(f"[npc-chat-tts:{game_id}:{npc_id}] {e}")
+
+    return {
+        **turn.model_dump(),
+        "sessionId": body.sessionId,
+        "audioUrl": audio_url,
+        "clueGranted": should_grant,
+        "hintId": hint.id if should_grant else None,
+    }
+
+
+@app.post("/api/game/{game_id}/solve")
+async def solve(game_id: str, body: SolveBody):
+    game = get_or_load_game(game_id)
+    if not game or not game.bible:
+        raise HTTPException(status_code=404)
+
+    correct = body.locationId == game.bible.finalLocationId
+
+    if correct and not game.assets.reunionPhotoUrl:
+        async def gen_reunion():
+            try:
+                data = await generate_reunion_photo(game.bible)  # type: ignore
+                url = save_asset(f"games/{game.id}/reunion.png", data)
+                game.assets.reunionPhotoUrl = url
+                set_game(game)
+                snapshot_game(game)
+            except Exception as e:
+                print(f"[reunion:{game.id}] {e}")
+        spawn_task(gen_reunion())
+
+    if not correct:
+        chosen = next((l for l in game.bible.candidateLocations if l.id == body.locationId), None)
+        hint = next((h for h in game.bible.hints if body.locationId in h.eliminatesLocationIds), None)
+        nudge = (
+            f'Hmm, remember: "{hint.text}" — does that fit {chosen.name if chosen else "that place"}?'
+            if hint else "Hmm, think about all three hints together!"
+        )
+        return {"correct": False, "nudge": nudge}
+
+    return {"correct": True}
+
+
+@app.get("/healthz")
+async def healthz():
+    return "ok"
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("server.main:app", host="0.0.0.0", port=PORT, reload=True)

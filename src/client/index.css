@@ -1,0 +1,20 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #ffecd2; }
+button:disabled { opacity: 0.6; cursor: not-allowed; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes pop { from { transform: scale(0.7); } to { transform: scale(1); } }
+@keyframes fadeout { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes look-pulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.09); filter: brightness(1.12); }
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(-15vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(115vh) rotate(720deg); opacity: 0.15; }
+}
+
+@media (max-width: 600px) {
+  .audio-label { display: none; }
+  .audio-button { width: 42px; height: 42px; padding: 0 !important; }
+}

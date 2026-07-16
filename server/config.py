@@ -1,0 +1,19 @@
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent.parent / ".env.local")
+
+OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+TEXT_MODEL = os.getenv("TEXT_MODEL", "gpt-5.4-mini-2026-03-17")
+NPC_MODEL = os.getenv("NPC_MODEL", "gpt-5.6-luna")
+IMAGE_MODEL = os.getenv("IMAGE_MODEL", "gemini-2.5-flash-image")
+TTS_MODEL = os.getenv("TTS_MODEL", "gpt-4o-mini-tts")
+MODERATION_MODEL = os.getenv("MODERATION_MODEL", "omni-moderation-latest")
+ASSETS_DIR = Path(os.getenv("ASSETS_DIR", "./local-assets"))
+PORT = int(os.getenv("PORT", "8000"))
+
+# Dev mode: cache all AI generations to disk, skip API calls on cache hit
+DEV_CACHE = os.getenv("DEV_CACHE", "true").lower() == "true"
+DEV_CACHE_DIR = Path(os.getenv("DEV_CACHE_DIR", "./dev-cache"))
