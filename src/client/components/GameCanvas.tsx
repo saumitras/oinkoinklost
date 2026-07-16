@@ -8,7 +8,20 @@ import { DialogueBubble } from './DialogueBubble'
 import { LocationPicker } from './LocationPicker'
 import { ReunionScene } from './ReunionScene'
 import { IntroOverlay } from './IntroOverlay'
-import { isMuted, playAudio, playChime, setMuted, speakText, stopAudio } from '../game/audio'
+import {
+  getBackgroundMusicLevel,
+  isBackgroundMusicMuted,
+  isMuted,
+  playAudio,
+  playChime,
+  setBackgroundMusicLevel,
+  setBackgroundMusicMuted,
+  setMuted,
+  speakText,
+  startBackgroundMusic,
+  stopAudio,
+  stopBackgroundMusic,
+} from '../game/audio'
 
 interface Props {
   game: Game
@@ -23,17 +36,31 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
   const pendingPickerAfterDialogue = useRef(false)
   const [toast, setToast] = useState('')
   const toastTimer = useRef<number>(0)
+  const toastVersion = useRef(0)
   const [showIntro, setShowIntro] = useState(true)
   const [muted, setMutedState] = useState(isMuted())
+  const [musicMuted, setMusicMutedState] = useState(isBackgroundMusicMuted())
+  const [musicLevel, setMusicLevelState] = useState(Math.round(getBackgroundMusicLevel() * 100))
+  const [showAudioPanel, setShowAudioPanel] = useState(false)
   const loadedStreetUrl = useRef(game.assets.streetUrl)
   const isTouch = useRef(
     typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
   ).current
 
   function showToast(msg: string, ms = 2600) {
+    const version = ++toastVersion.current
     setToast(msg)
     window.clearTimeout(toastTimer.current)
-    toastTimer.current = window.setTimeout(() => setToast(''), ms)
+    toastTimer.current = window.setTimeout(() => {
+      if (version === toastVersion.current) setToast('')
+    }, ms)
+    return version
+  }
+
+  function hideToast(version: number) {
+    if (version !== toastVersion.current) return
+    window.clearTimeout(toastTimer.current)
+    setToast('')
   }
 
   // Init engine once
@@ -50,6 +77,11 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
       destroyEngine()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    startBackgroundMusic('/theme3.mp3').catch(console.error)
+    return () => stopBackgroundMusic()
+  }, [])
 
   // Poll for background-completed assets (rooms, TTS)
   useEffect(() => {
@@ -106,13 +138,12 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
         const description = building.exteriorDescription
           || `${building.name} is part of this curious little world.`
         const lookResult = `${building.name}. ${description} Mama is not here.`
-        showToast(`👀 ${building.name}: ${description} Mama is not here.`, 4800)
+        const toastId = showToast(`👀 ${building.name}: ${description} Mama is not here.`, 20000)
         const lookAudio = currentGame.assets.audio[`building_${building.id}.look`]
-        if (lookAudio) {
-          playAudio(lookAudio).catch(() => speakText(lookResult))
-        } else {
-          speakText(lookResult)
-        }
+        const narration = lookAudio
+          ? playAudio(lookAudio).catch(() => speakText(lookResult))
+          : speakText(lookResult)
+        narration.finally(() => hideToast(toastId))
       }
       return
     }
@@ -214,10 +245,22 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
     ? currentGame.bible?.hints.find(hint => hint.npcId === dialogue.npcId)
     : undefined
 
-  function toggleMute() {
+  function toggleGameSound() {
     const next = !muted
     setMuted(next)
     setMutedState(next)
+  }
+
+  function toggleBackgroundMusic() {
+    const next = !musicMuted
+    setBackgroundMusicMuted(next)
+    setMusicMutedState(next)
+  }
+
+  function changeMusicLevel(event: React.FormEvent<HTMLInputElement>) {
+    const next = Number(event.currentTarget.value)
+    setMusicLevelState(next)
+    setBackgroundMusicLevel(next / 100)
   }
 
   function goHome() {
@@ -232,27 +275,82 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
       {ambientUrl && <img src={ambientUrl} alt="" aria-hidden="true" style={styles.ambientBg} />}
       <div ref={containerRef} style={styles.canvas} />
 
-      <button
-        style={styles.homeBtn}
-        onClick={goHome}
-        aria-label="Return to the adventure library"
-        title="Return to the adventure library"
-      >
-        ⌂ Home
-      </button>
+      <div style={styles.topControls}>
+        <button
+          style={styles.iconBtn}
+          onClick={goHome}
+          aria-label="Return to the adventure library"
+          title="Home"
+        >
+          <span aria-hidden="true">🏠</span>
+        </button>
+        <button
+          style={{ ...styles.iconBtn, ...(showAudioPanel ? styles.iconBtnActive : {}) }}
+          onClick={() => setShowAudioPanel(show => !show)}
+          aria-label="Open audio controls"
+          aria-expanded={showAudioPanel}
+          title="Audio controls"
+        >
+          <SoundIcon muted={muted && musicMuted} />
+        </button>
+      </div>
 
-      {store.screen !== 'street' && !showIntro && !store.showPicker && !store.showReunion && (
-        <button style={styles.exitBtn} onClick={returnToStreet}>← Leave house</button>
+      {showAudioPanel && (
+        <div style={styles.audioPanel} role="dialog" aria-label="Audio controls">
+          <div style={styles.audioPanelHeader}>
+            <span>Audio</span>
+            <button
+              style={styles.audioCloseBtn}
+              onClick={() => setShowAudioPanel(false)}
+              aria-label="Close audio controls"
+            >×</button>
+          </div>
+
+          <button style={styles.audioToggleRow} onClick={toggleGameSound} aria-pressed={!muted}>
+            <span style={styles.audioRowLabel}>
+              <SoundIcon muted={muted} />
+              <span style={styles.audioRowText}><strong>Game sound</strong><small>Voices &amp; effects</small></span>
+            </span>
+            <span style={{ ...styles.togglePill, ...(!muted ? styles.togglePillOn : {}) }}>
+              {!muted ? 'On' : 'Muted'}
+            </span>
+          </button>
+
+          <button style={styles.audioToggleRow} onClick={toggleBackgroundMusic} aria-pressed={!musicMuted}>
+            <span style={styles.audioRowLabel}>
+              <span style={styles.musicNote} aria-hidden="true">♪</span>
+              <span style={styles.audioRowText}><strong>Background music</strong><small>Adventure theme</small></span>
+            </span>
+            <span style={{ ...styles.togglePill, ...(!musicMuted ? styles.togglePillOn : {}) }}>
+              {!musicMuted ? 'On' : 'Muted'}
+            </span>
+          </button>
+
+          <label style={{ ...styles.volumeControl, ...(musicMuted ? styles.volumeControlDisabled : {}) }}>
+            <span style={styles.volumeLabel}>
+              <span>Music level</span><output>{musicLevel}%</output>
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={musicLevel}
+              onInput={changeMusicLevel}
+              disabled={musicMuted}
+              aria-label="Background music volume"
+              style={styles.volumeSlider}
+            />
+          </label>
+        </div>
       )}
 
-      <button
-        className="audio-button"
-        style={{ ...styles.audioBtn, left: store.screen === 'street' ? 16 : 150 }}
-        onClick={toggleMute}
-        aria-label={muted ? 'Turn sound on' : 'Mute sound'}
-      >
-        <span>{muted ? '🔇' : '🔊'}</span><span className="audio-label"> {muted ? 'Sound off' : 'Sound on'}</span>
-      </button>
+      {store.screen !== 'street' && !showIntro && !store.showPicker && !store.showReunion && (
+        <button
+          style={{ ...styles.exitBtn, top: showAudioPanel ? 286 : 68 }}
+          onClick={returnToStreet}
+        >← Leave house</button>
+      )}
 
       {!showIntro && !store.showPicker && (
         <HintTracker game={currentGame} collectedHintIds={store.collectedHintIds} />
@@ -260,7 +358,11 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
 
       {/* Persistent controls legend */}
       {!showIntro && !store.showPicker && !store.showReunion && (
-        <div style={{ ...styles.controlsLegend, ...(isTouch ? styles.controlsLegendTouch : {}) }} aria-label="Game controls">
+        <div style={{
+          ...styles.controlsLegend,
+          ...(isTouch ? styles.controlsLegendTouch : {}),
+          ...(isTouch && showAudioPanel ? { top: 334 } : {}),
+        }} aria-label="Game controls">
           <div style={styles.controlsTitle}>CONTROLS</div>
           {isTouch ? (
             <>
@@ -329,6 +431,36 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
   )
 }
 
+function SoundIcon({ muted }: { muted: boolean }) {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M11 5 6.5 8.5H3.8v7h2.7L11 19V5Z" />
+      {muted ? (
+        <>
+          <path d="m16 9 5 5" />
+          <path d="m21 9-5 5" />
+        </>
+      ) : (
+        <>
+          <path d="M15 9.5a4 4 0 0 1 0 5" />
+          <path d="M18 6.5a8 8 0 0 1 0 11" />
+        </>
+      )}
+    </svg>
+  )
+}
+
 function DPad() {
   function bind(dir: Dir) {
     return {
@@ -365,28 +497,67 @@ const styles: Record<string, React.CSSProperties> = {
   },
   canvas: { position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'block', objectFit: 'contain' },
   exitBtn: {
-    position: 'absolute', zIndex: 24, top: 16, left: 16,
+    position: 'absolute', zIndex: 24, top: 68, left: 16,
     background: 'rgba(255,255,255,0.85)', border: 'none', borderRadius: 12,
     padding: '8px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', color: '#555',
   },
-  homeBtn: {
-    position: 'absolute', zIndex: 60, top: 16, right: 16,
-    background: 'rgba(255,255,255,0.88)', color: '#5b3a1e', border: '2px solid rgba(255,255,255,0.72)',
-    borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 900, cursor: 'pointer',
-    backdropFilter: 'blur(8px)', boxShadow: '0 3px 14px rgba(0,0,0,0.2)',
+  topControls: {
+    position: 'absolute', zIndex: 60, top: 16, left: 16, display: 'flex', gap: 8,
   },
-  audioBtn: {
-    position: 'absolute', zIndex: 12, top: 16, background: 'rgba(255,255,255,0.86)',
-    color: '#5b3a1e', border: 0, borderRadius: 12, padding: '9px 12px', fontSize: 13,
-    fontWeight: 800, cursor: 'pointer', backdropFilter: 'blur(8px)', boxShadow: '0 3px 12px rgba(0,0,0,0.15)',
+  iconBtn: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42,
+    padding: 0, background: 'rgba(255,255,255,0.88)', color: '#5b3a1e',
+    border: '2px solid rgba(255,255,255,0.72)', borderRadius: 12, fontSize: 18,
+    cursor: 'pointer', backdropFilter: 'blur(8px)', boxShadow: '0 3px 14px rgba(0,0,0,0.2)',
   },
+  iconBtnActive: { background: '#fff7ed', borderColor: '#e8a46f', color: '#a85431' },
+  audioPanel: {
+    position: 'absolute', zIndex: 59, top: 68, left: 16, width: 280, maxWidth: 'calc(100vw - 32px)',
+    display: 'grid', gap: 9, padding: 14, borderRadius: 18,
+    background: 'rgba(255,253,249,0.94)', color: '#513727',
+    border: '2px solid rgba(255,255,255,0.82)', boxShadow: '0 12px 36px rgba(22,14,10,0.3)',
+    backdropFilter: 'blur(14px) saturate(1.12)',
+  },
+  audioPanelHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '0 2px 2px', fontSize: 14, fontWeight: 950, letterSpacing: 0.3,
+  },
+  audioCloseBtn: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28,
+    padding: 0, border: 0, borderRadius: 9, background: 'rgba(107,76,58,0.08)',
+    color: '#705445', fontSize: 20, lineHeight: 1, cursor: 'pointer',
+  },
+  audioToggleRow: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+    width: '100%', padding: '10px 11px', border: '1px solid rgba(215,190,173,0.72)',
+    borderRadius: 13, background: 'rgba(255,255,255,0.68)', color: '#513727',
+    cursor: 'pointer', textAlign: 'left',
+  },
+  audioRowLabel: { display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 },
+  audioRowText: { display: 'grid', gap: 2, fontSize: 12, lineHeight: 1.15 },
+  musicNote: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22,
+    color: '#a85431', fontSize: 24, fontWeight: 800,
+  },
+  togglePill: {
+    minWidth: 52, padding: '5px 8px', borderRadius: 99, background: '#eadfd8',
+    color: '#80695d', fontSize: 10, fontWeight: 900, textAlign: 'center',
+  },
+  togglePillOn: { background: '#dcefe4', color: '#34704c' },
+  volumeControl: {
+    display: 'grid', gap: 8, padding: '8px 11px 5px', color: '#62483a',
+    fontSize: 12, fontWeight: 850,
+  },
+  volumeControlDisabled: { opacity: 0.48 },
+  volumeLabel: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  volumeSlider: { width: '100%', accentColor: '#d96f49', cursor: 'pointer' },
   controlsLegend: {
     position: 'absolute', zIndex: 12, bottom: 18, left: 18, width: 246,
     display: 'grid', gap: 7, padding: '12px 14px', borderRadius: 15,
     background: 'rgba(35,25,17,0.56)', color: 'white', border: '2px solid rgba(255,255,255,0.62)',
     boxShadow: '0 5px 20px rgba(0,0,0,0.32)', backdropFilter: 'blur(8px)',
   },
-  controlsLegendTouch: { top: 70, bottom: 'auto', width: 218 },
+  controlsLegendTouch: { top: 116, bottom: 'auto', width: 218 },
   controlsTitle: { fontSize: 10, fontWeight: 950, letterSpacing: 1.4, color: '#ffd66b' },
   controlRow: { display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 9, alignItems: 'center', fontSize: 11, lineHeight: 1.2 },
   controlKey: {

@@ -13,6 +13,9 @@ const EXIT_RADIUS = 90
 
 let app: Application | null = null
 let initPromise: Promise<void> | null = null
+// Async scene loads can overlap (notably during React StrictMode remounts or
+// when a freshly generated hub URL arrives). Only the newest load may render.
+let sceneLoadVersion = 0
 
 // Player state lives here; the sprite is a pure render of it (bob never feeds back).
 const player = { x: WORLD_W / 2, y: WORLD_H - 200, facing: 'front' as 'front' | 'left' | 'right' | 'back' }
@@ -73,6 +76,7 @@ export async function initEngine(container: HTMLDivElement): Promise<void> {
 }
 
 export function destroyEngine() {
+  sceneLoadVersion += 1
   detachKeyboard()
   window.removeEventListener('keydown', onDebugKey)
   gridOverlay = null
@@ -140,27 +144,32 @@ function makeMarker(emoji: string, size = 40, prominentLook = false): Container 
 // ── Street scene ──────────────────────────────────────────────────────────────
 export async function loadStreetScene(game: Game) {
   if (!app || !game.assets.streetUrl || !game.annotation) return
+  const targetApp = app
+  const loadVersion = ++sceneLoadVersion
+
+  const bgTex = await Assets.load(game.assets.streetUrl)
+  await loadPlayerTextures(game)
+  if (app !== targetApp || loadVersion !== sceneLoadVersion) return
+
   scene = { kind: 'street' }
-  app.stage.removeChildren()
+  targetApp.stage.removeChildren()
   doorMarkers.clear()
   lookMarkerIds.clear()
   npcMarker = null
   exitMarker = null
 
-  const bgTex = await Assets.load(game.assets.streetUrl)
   const bg = new Sprite(bgTex)
   bg.width = WORLD_W
   bg.height = WORLD_H
-  app.stage.addChild(bg)
+  targetApp.stage.addChild(bg)
 
-  await loadPlayerTextures(game)
   playerSprite = makePlayerSprite()
   const spawn = game.annotation.spawn
   player.x = (spawn.col + 0.5) * CELL_SIZE
   // Feet near the bottom of the spawn cell but strictly inside it
   player.y = (spawn.row + 0.9) * CELL_SIZE
   playerSprite.position.set(player.x, player.y)
-  app.stage.addChild(playerSprite)
+  targetApp.stage.addChild(playerSprite)
 
   // Collision debug overlay (press G): blocked cells red, doors/spawn dots
   gridOverlay = new Graphics()
@@ -175,7 +184,7 @@ export async function loadStreetScene(game: Game) {
     gridOverlay.circle(d.x, d.y, 10).fill({ color: 0x2266ff, alpha: 0.8 })
   }
   gridOverlay.visible = false
-  app.stage.addChild(gridOverlay)
+  targetApp.stage.addChild(gridOverlay)
 
   // Mama's glowing beacon (revealed once the mystery is solved)
   mamaGlow = new Container()
@@ -202,7 +211,7 @@ export async function loadStreetScene(game: Game) {
   mamaLabel.y = 66
   mamaGlow.addChild(mamaRings, mamaHeart, mamaLabel)
   mamaGlow.visible = false
-  app.stage.addChild(mamaGlow)
+  targetApp.stage.addChild(mamaGlow)
 
   // One marker per door, shown on proximity (or always, for Mama's door after solve)
   for (const door of game.annotation.doors) {
@@ -218,7 +227,7 @@ export async function loadStreetScene(game: Game) {
     marker.position.set(door.x, door.y - 14)
     doorMarkers.set(door.buildingId, marker)
     if (isLookable) lookMarkerIds.add(door.buildingId)
-    app.stage.addChild(marker)
+    targetApp.stage.addChild(marker)
     if (isMama && mamaGlow) mamaGlow.position.set(door.x, door.y)
   }
 
@@ -229,23 +238,29 @@ export async function loadStreetScene(game: Game) {
 export async function loadRoomScene(game: Game, buildingId: string) {
   const room = game.assets.rooms[buildingId]
   if (!app || !room?.imageUrl || !room.annotation) return
+  const targetApp = app
+  const loadVersion = ++sceneLoadVersion
+
+  const bgTex = await Assets.load(room.imageUrl)
+  await loadPlayerTextures(game)
+  if (app !== targetApp || loadVersion !== sceneLoadVersion) return
+
   scene = { kind: 'room', buildingId }
-  app.stage.removeChildren()
+  targetApp.stage.removeChildren()
   doorMarkers.clear()
   lookMarkerIds.clear()
   mamaGlow = null
 
-  const bgTex = await Assets.load(room.imageUrl)
   const bg = new Sprite(bgTex)
   bg.width = WORLD_W
   bg.height = WORLD_H
-  app.stage.addChild(bg)
+  targetApp.stage.addChild(bg)
 
   const box = room.annotation.npcBox
   npcCenter = { x: box.x + box.w / 2, y: Math.min(box.y + box.h, ROOM_BAND.maxY) }
   npcMarker = makeMarker('💬')
   npcMarker.position.set(npcCenter.x, box.y - 6)
-  app.stage.addChild(npcMarker)
+  targetApp.stage.addChild(npcMarker)
 
   exitPos = {
     x: Math.max(ROOM_BAND.minX, Math.min(ROOM_BAND.maxX, room.annotation.exit.x)),
@@ -253,15 +268,14 @@ export async function loadRoomScene(game: Game, buildingId: string) {
   }
   exitMarker = makeMarker('🚪', 34)
   exitMarker.position.set(exitPos.x, exitPos.y - 10)
-  app.stage.addChild(exitMarker)
+  targetApp.stage.addChild(exitMarker)
 
-  await loadPlayerTextures(game)
   playerSprite = makePlayerSprite()
   // Enter through the door: spawn at the exit position
   player.x = exitPos.x
   player.y = exitPos.y - 8
   playerSprite.position.set(player.x, player.y)
-  app.stage.addChild(playerSprite)
+  targetApp.stage.addChild(playerSprite)
 
   useGameStore.getState().setPlayerPos({ x: player.x, y: player.y })
 }
