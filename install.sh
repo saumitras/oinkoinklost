@@ -15,6 +15,7 @@ CONTAINER_NAME="${OINKOINK_CONTAINER:-oinkoink}"
 VOLUME_NAME="${OINKOINK_VOLUME:-oinkoink-data}"
 PORT="${OINKOINK_PORT:-5173}"
 BIND_ADDRESS="${OINKOINK_BIND:-127.0.0.1}"
+NETWORK="${OINKOINK_NETWORK:-}"
 SKIP_PULL="${OINKOINK_SKIP_PULL:-false}"
 TEMP_ENV=""
 
@@ -107,6 +108,18 @@ if ! docker run -d \
   "$IMAGE" >/dev/null; then
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
   fail "The container could not start. Port $PORT may already be in use."
+fi
+
+if [ -n "$NETWORK" ]; then
+  echo "▶ Connecting Oink Oink Lost to Docker network $NETWORK..."
+  if ! docker network inspect "$NETWORK" >/dev/null 2>&1; then
+    docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+    fail "Docker network '$NETWORK' does not exist."
+  fi
+  if ! docker network connect "$NETWORK" "$CONTAINER_NAME"; then
+    docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+    fail "The container could not connect to Docker network '$NETWORK'."
+  fi
 fi
 
 echo -n "▶ Waiting for the game"
