@@ -97,9 +97,9 @@
         "appearance": "A round white owl in a tiny captain coat with golden buttons and a neat map pinned to the wall.",
         "personality": "Calm, wise, and a little funny.",
         "roomPosition": "center",
-        "ttsVoice": "alloy",
+        "ttsVoice": "cedar",
         "lines": {
-          "greeting": "Hoo there, little explorer.",
+          "greeting": "Hoo-hoo! Welcome aboard, little explorer. You look like you're searching for someone.",
           "hint": "I am sure Mama did not stop at Command Bridge.",
           "idle": "Hoo hoo, the station hums so nicely."
         },
@@ -112,9 +112,9 @@
             "Captain Hoot likes neat lines on maps."
           ],
           "openingChoices": [
-            "Ask about Mama",
-            "Ask about the station",
-            "Ask for a clue"
+            "Have you seen my Mama?",
+            "Tell me about the star maps.",
+            "Which button is your favorite?"
           ],
           "clueLeadIn": "I can point you the right way.",
           "animalSound": "Hoo"
@@ -127,9 +127,9 @@
         "appearance": "A friendly white robot rabbit with green ear lights and tiny tool paws.",
         "personality": "Helpful, bouncy, and precise.",
         "roomPosition": "left",
-        "ttsVoice": "echo",
+        "ttsVoice": "marin",
         "lines": {
-          "greeting": "Boop! Hello, little hopper.",
+          "greeting": "Boop-boop! Hello, Piglet. My scanners say you could use a friendly helper.",
           "hint": "I am sure Mama did not stop at Moon Greenhouse.",
           "idle": "Boop boop, plants love tidy water."
         },
@@ -142,9 +142,9 @@
             "Bun-Bit trims leaves with tiny tool paws."
           ],
           "openingChoices": [
-            "Ask about Mama",
-            "Ask about plants",
-            "Ask for a clue"
+            "Have you seen my Mama?",
+            "Tell me about the moon tomatoes.",
+            "How do the water beads float?"
           ],
           "clueLeadIn": "I noticed something useful.",
           "animalSound": "Boop"
@@ -157,9 +157,9 @@
         "appearance": "A fluffy gray cat in a striped apron with flour on her whiskers and a spoon tucked in her pocket.",
         "personality": "Cheerful, chatty, and proud of snacks.",
         "roomPosition": "right",
-        "ttsVoice": "fable",
+        "ttsVoice": "coral",
         "lines": {
-          "greeting": "Meow hello, sweet pea.",
+          "greeting": "Meow! Hello, little star. Come in\u2014the buns are warm and I'm all ears.",
           "hint": "I am sure Mama did not stop at Supply Locker.",
           "idle": "Meow, the buns are puffing up nicely."
         },
@@ -172,9 +172,9 @@
             "Mira likes to stack cookies in neat circles."
           ],
           "openingChoices": [
-            "Ask about Mama",
-            "Ask about snacks",
-            "Ask for a clue"
+            "Have you seen my Mama?",
+            "Tell me about the sticky buns.",
+            "What's your favorite space snack?"
           ],
           "clueLeadIn": "I saw where she waddled.",
           "animalSound": "Meow"
@@ -348,56 +348,71 @@
       "npc_robot_rabbit.idle": "/assets/games/Kgo4d31zD9kv1nANmRLep/audio/npc_robot_rabbit.idle.mp3",
       "building_sleep_pods.look": "/assets/games/Kgo4d31zD9kv1nANmRLep/audio/building_sleep_pods.look.mp3",
       "building_storage.look": "/assets/games/Kgo4d31zD9kv1nANmRLep/audio/building_storage.look.mp3",
-      "building_airlock.look": "/assets/games/Kgo4d31zD9kv1nANmRLep/audio/building_airlock.look.mp3"
+      "building_airlock.look": "/assets/games/Kgo4d31zD9kv1nANmRLep/audio/building_airlock.look.mp3",
+      "npc_captain_owl.greeting": "/assets/games/Kgo4d31zD9kv1nANmRLep/audio/opener_captain_owl_4628431abe2913d2.mp3",
+      "npc_robot_rabbit.greeting": "/assets/games/Kgo4d31zD9kv1nANmRLep/audio/opener_robot_rabbit_16b8a04f60a03d28.mp3",
+      "npc_chef_cat.greeting": "/assets/games/Kgo4d31zD9kv1nANmRLep/audio/opener_chef_cat_cb9d109b313009b6.mp3"
     },
     "npcOpeners": {
       "chef_cat": {
-        "reply": "Meow hello, sweet pea.",
+        "reply": "Meow! Hello, little star. Come in\u2014the buns are warm and I'm all ears.",
         "suggestedReplies": [
           {
             "text": "Have you seen my Mama?",
             "intent": "ask_mama"
           },
           {
-            "text": "Ask about snacks",
+            "text": "Tell me about the sticky buns.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "What's your favorite space snack?",
             "intent": "small_talk"
           }
         ],
         "mood": "cheerful",
         "conversationComplete": false,
-        "audioUrl": "/assets/games/Kgo4d31zD9kv1nANmRLep/audio/opener_0992b687d43642f9.mp3"
+        "audioUrl": "/assets/games/Kgo4d31zD9kv1nANmRLep/audio/opener_chef_cat_cb9d109b313009b6.mp3"
       },
       "captain_owl": {
-        "reply": "Hoo there, little explorer.",
+        "reply": "Hoo-hoo! Welcome aboard, little explorer. You look like you're searching for someone.",
         "suggestedReplies": [
           {
             "text": "Have you seen my Mama?",
             "intent": "ask_mama"
           },
           {
-            "text": "Ask about the station",
+            "text": "Tell me about the star maps.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Which button is your favorite?",
             "intent": "small_talk"
           }
         ],
         "mood": "cheerful",
         "conversationComplete": false,
-        "audioUrl": "/assets/games/Kgo4d31zD9kv1nANmRLep/audio/opener_88a994e8e1121fe7.mp3"
+        "audioUrl": "/assets/games/Kgo4d31zD9kv1nANmRLep/audio/opener_captain_owl_4628431abe2913d2.mp3"
       },
       "robot_rabbit": {
-        "reply": "Boop! Hello, little hopper.",
+        "reply": "Boop-boop! Hello, Piglet. My scanners say you could use a friendly helper.",
         "suggestedReplies": [
           {
             "text": "Have you seen my Mama?",
             "intent": "ask_mama"
           },
           {
-            "text": "Ask about plants",
+            "text": "Tell me about the moon tomatoes.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "How do the water beads float?",
             "intent": "small_talk"
           }
         ],
         "mood": "cheerful",
         "conversationComplete": false,
-        "audioUrl": "/assets/games/Kgo4d31zD9kv1nANmRLep/audio/opener_36e359ffdc7cb81e.mp3"
+        "audioUrl": "/assets/games/Kgo4d31zD9kv1nANmRLep/audio/opener_robot_rabbit_16b8a04f60a03d28.mp3"
       }
     },
     "reunionPhotoUrl": "/assets/games/Kgo4d31zD9kv1nANmRLep/reunion.png"

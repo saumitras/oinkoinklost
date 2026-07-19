@@ -72,18 +72,6 @@ PRESET_WORLDS = {
         "subtitle": "Autumn paths, cider, and cozy barns",
         "emoji": "🎃",
     },
-    "seaside-village": {
-        "templateId": "DS1Wm9QZ2cHIblaVfvLDx",
-        "title": "Seaside Village",
-        "subtitle": "Shell cottages and salty little clues",
-        "emoji": "🐚",
-    },
-    "dino-party": {
-        "templateId": "B9888D_mmeb8VQ1H84jVq",
-        "title": "Dinosaur Party",
-        "subtitle": "Balloons, presents, and dino friends",
-        "emoji": "🦕",
-    },
     "moon-station": {
         "templateId": "Kgo4d31zD9kv1nANmRLep",
         "title": "Moon Station",
@@ -93,8 +81,14 @@ PRESET_WORLDS = {
 }
 
 
-def apply_pumpkin_mystery_variant(game) -> None:
-    """Reuse the same art with a different truthful Mama location each play."""
+CURATED_CLUE_OPENERS = {
+    "pumpkin-farm": {"cow": "Moo… ", "goat": "Baa—", "duck": "Quack! "},
+    "moon-station": {"captain_owl": "Hoo… ", "robot_rabbit": "Boop! ", "chef_cat": "Meow! "},
+}
+
+
+def apply_curated_mystery_variant(game, slug: str) -> None:
+    """Reuse curated art with a different truthful Mama location each play."""
     if not game.bible:
         return
     candidates = game.bible.candidateLocations
@@ -105,7 +99,7 @@ def apply_pumpkin_mystery_variant(game) -> None:
     game.bible.finalLocationId = final.id
     game.bible.finalLocationBuildingId = final.id
     alternatives = [candidate for candidate in candidates if candidate.id != final.id]
-    clue_openers = {"cow": "Moo… ", "goat": "Baa—", "duck": "Quack! "}
+    clue_openers = CURATED_CLUE_OPENERS.get(slug, {})
     random.shuffle(alternatives)
     for hint, eliminated in zip(game.bible.hints, alternatives):
         opener = clue_openers.get(hint.npcId, "Hmm… ")
@@ -129,7 +123,7 @@ async def start_game(body: StartGameBody):
     if flagged:
         raise HTTPException(status_code=403, detail={
             "error": "idea_flagged",
-            "suggestions": ["a pumpkin farm in autumn", "a tiny seaside village", "a dinosaur birthday party"],
+            "suggestions": ["a pumpkin farm in autumn", "a cozy space station on the moon"],
         })
 
     game = await run_pipeline(idea, cozy_visuals=body.cozyVisuals)
@@ -168,8 +162,8 @@ async def start_preset(slug: str):
     game.id = nanoid()
     game.createdAt = datetime.now(timezone.utc).isoformat()
     game.fromWarmPool = True
-    if slug == "pumpkin-farm":
-        apply_pumpkin_mystery_variant(game)
+    if slug in CURATED_CLUE_OPENERS:
+        apply_curated_mystery_variant(game, slug)
     for npc in game.bible.npcs:  # type: ignore[union-attr]
         if npc.id not in game.assets.npcOpeners:
             opener = build_npc_opener(npc, game.bible)

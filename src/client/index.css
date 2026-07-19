@@ -39,6 +39,12 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 }
 .world-effects .world-leaf::before { content: '🍂'; }
 .world-effects .world-speck::before { content: '·'; }
+.world-effects-moon span {
+  color: #bfeaff; text-shadow: 0 0 9px rgba(133,220,255,0.85);
+  animation-direction: reverse; animation-timing-function: ease-in-out;
+}
+.world-effects .world-star::before { content: '✦'; }
+.world-effects .world-orb::before { content: '·'; }
 
 @media (max-width: 600px) {
   .audio-label { display: none; }

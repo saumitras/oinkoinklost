@@ -4,7 +4,7 @@ import { nearestDoor, WORLD_W, WORLD_H, ROOM_BAND, CELL_SIZE } from './collision
 import { attachKeyboard, detachKeyboard, getAxis } from './input'
 import { footstep } from './audio'
 import type { Game } from '@shared/schema'
-import type { QuestObject } from './pumpkinQuests'
+import type { QuestObject } from './adventureQuests'
 
 const SPEED = 220
 const PLAYER_HEIGHT = 96

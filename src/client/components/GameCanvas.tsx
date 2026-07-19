@@ -13,11 +13,12 @@ import { ReunionScene } from './ReunionScene'
 import { IntroOverlay } from './IntroOverlay'
 import { QuestBrief } from './QuestBrief'
 import {
-  pumpkinQuestForNpc,
-  pumpkinQuestForRoom,
-  isPumpkinFarm,
-  type PumpkinQuest,
-} from '../game/pumpkinQuests'
+  curatedAdventure,
+  isCuratedAdventure,
+  questForNpc,
+  questForRoom,
+  type AdventureQuest,
+} from '../game/adventureQuests'
 import {
   getBackgroundMusicLevel,
   isBackgroundMusicMuted,
@@ -54,7 +55,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
   const [musicLevel, setMusicLevelState] = useState(Math.round(getBackgroundMusicLevel() * 100))
   const [showAudioPanel, setShowAudioPanel] = useState(false)
   const [questProgress, setQuestProgress] = useState<Record<string, 'searching' | 'completed'>>({})
-  const [questBrief, setQuestBrief] = useState<PumpkinQuest | null>(null)
+  const [questBrief, setQuestBrief] = useState<AdventureQuest | null>(null)
   const [questMistakes, setQuestMistakes] = useState<Record<string, number>>({})
   const loadedStreetUrl = useRef(game.assets.streetUrl)
   const isTouch = useRef(
@@ -120,7 +121,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
     if (!store.screen.startsWith('room_')) return
     const activeRoomId = store.screen.slice(5)
     const current = useGameStore.getState().game ?? game
-    const quest = pumpkinQuestForRoom(current, activeRoomId)
+    const quest = questForRoom(current, activeRoomId)
     if (!quest || questProgress[quest.npcId] !== 'searching') return
     const timer = window.setTimeout(() => {
       if (useGameStore.getState().screen !== `room_${activeRoomId}`) return
@@ -139,7 +140,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
 
     if (nearby.kind === 'quest') {
       const activeRoomId = s.screen.startsWith('room_') ? s.screen.slice(5) : ''
-      const quest = pumpkinQuestForRoom(currentGame, activeRoomId)
+      const quest = questForRoom(currentGame, activeRoomId)
       const object = quest?.objects.find(candidate => candidate.id === nearby.objectId)
       if (!quest || !object || questProgress[quest.npcId] !== 'searching') return
       stopAudio()
@@ -195,7 +196,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
         }
         s.setScreen(`room_${building.id}`)
         loadRoomScene(currentGame, building.id).then(() => {
-          const quest = microQuestsEnabled ? pumpkinQuestForRoom(currentGame, building.id) : undefined
+          const quest = microQuestsEnabled ? questForRoom(currentGame, building.id) : undefined
           if (quest && questProgress[quest.npcId] === 'searching') {
             setRoomQuestObjects(quest.objects)
           } else if (quest && questProgress[quest.npcId] === 'completed') {
@@ -341,9 +342,10 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
   }
 
   const isLookAction = store.nearby?.kind === 'door' && !store.nearby.enterable
-  const pumpkinWorld = isPumpkinFarm(currentGame)
+  const curatedWorld = isCuratedAdventure(currentGame)
+  const adventureTheme = curatedAdventure(currentGame)
 
-  function beginQuest(quest: PumpkinQuest) {
+  function beginQuest(quest: AdventureQuest) {
     setQuestBrief(null)
     setQuestProgress(progress => ({ ...progress, [quest.npcId]: 'searching' }))
     setRoomQuestObjects(quest.objects)
@@ -354,7 +356,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
   function interceptMamaQuestion(npcId: string, hintId: string): boolean {
     if (!microQuestsEnabled) return false
     if (store.collectedHintIds.includes(hintId)) return false
-    const quest = pumpkinQuestForNpc(currentGame, npcId)
+    const quest = questForNpc(currentGame, npcId)
     if (!quest || questProgress[npcId] === 'completed') return false
     setQuestBrief(quest)
     return true
@@ -364,7 +366,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
     <div className={`game-shell${isTouch ? ' touch-mode' : ''}`} style={styles.wrapper}>
       {ambientUrl && <img src={ambientUrl} alt="" aria-hidden="true" style={styles.ambientBg} />}
       <div ref={containerRef} style={styles.canvas} />
-      {pumpkinWorld && !showIntro && <WorldEffects />}
+      {adventureTheme && !showIntro && <WorldEffects theme={adventureTheme} />}
 
       <div className="game-top-controls" style={styles.topControls}>
         <button
@@ -497,7 +499,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
           onClueGranted={onConversationClue}
           onClose={onDialogueClose}
           onAskMama={() => interceptMamaQuestion(activeNpc.id, activeHint.id)}
-          generatedPigletVoice={pumpkinWorld}
+          generatedPigletVoice={curatedWorld}
         />
       )}
 
@@ -523,7 +525,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
           onNewAdventure={onNewAdventure}
           accomplishments={Object.entries(questProgress)
             .filter(([, status]) => status === 'completed')
-            .map(([npcId]) => pumpkinQuestForNpc(currentGame, npcId)?.title)
+            .map(([npcId]) => questForNpc(currentGame, npcId)?.title)
             .filter((title): title is string => Boolean(title))}
         />
       )}
@@ -543,11 +545,13 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
   )
 }
 
-function WorldEffects() {
+function WorldEffects({ theme }: { theme: 'pumpkin' | 'moon' }) {
   return (
-    <div className="world-effects" aria-hidden="true">
+    <div className={`world-effects world-effects-${theme}`} aria-hidden="true">
       {Array.from({ length: 14 }, (_, index) => (
-        <span className={index % 3 === 0 ? 'world-leaf' : 'world-speck'} key={index} style={{
+        <span className={theme === 'pumpkin'
+          ? (index % 3 === 0 ? 'world-leaf' : 'world-speck')
+          : (index % 3 === 0 ? 'world-star' : 'world-orb')} key={index} style={{
           left: `${(index * 29) % 96}%`,
           animationDelay: `${-index * 0.63}s`,
           animationDuration: `${6 + (index % 5)}s`,

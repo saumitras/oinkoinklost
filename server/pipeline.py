@@ -19,7 +19,7 @@ from server.ai import (
     DEFAULT_TTS_INSTRUCTIONS, NARRATOR_VOICE,
 )
 
-CANNED_IDEAS = ["a pumpkin farm in autumn", "a tiny seaside village", "a dinosaur birthday party"]
+CANNED_IDEAS = ["a pumpkin farm in autumn", "a cozy space station on the moon"]
 
 # Keep references to fire-and-forget tasks so they aren't garbage-collected.
 _bg_tasks: set[asyncio.Task] = set()

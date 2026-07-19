@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { playAudio, speakText } from '../game/audio'
 import type { Game } from '@shared/schema'
-import { pumpkinQuestForNpc } from '../game/pumpkinQuests'
+import { questForNpc } from '../game/adventureQuests'
 
 interface Props {
   game: Game
@@ -65,7 +65,7 @@ export function HintTracker({ game, collectedHintIds, embedded = false, forceExp
         <div style={styles.list}>
           {game.bible.hints.map((hint, i) => {
             const collected = collectedHintIds.includes(hint.id)
-            const quest = pumpkinQuestForNpc(game, hint.npcId)
+            const quest = questForNpc(game, hint.npcId)
             const clueObject = quest?.objects.find(object => object.correct)
             const roomImage = quest ? game.assets.rooms[quest.roomId]?.imageUrl : undefined
             return (

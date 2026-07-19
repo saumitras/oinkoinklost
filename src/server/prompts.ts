@@ -21,6 +21,5 @@ export const STAGE_COPY: Record<string, string> = {
 
 export const CANNED_IDEAS = [
   'a pumpkin farm in autumn',
-  'a tiny seaside village',
-  'a dinosaur birthday party',
+  'a cozy space station on the moon',
 ]

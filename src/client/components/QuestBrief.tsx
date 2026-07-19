@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
 import { speakText, stopAudio } from '../game/audio'
-import type { PumpkinQuest } from '../game/pumpkinQuests'
+import type { AdventureQuest } from '../game/adventureQuests'
 
 interface Props {
-  quest: PumpkinQuest
+  quest: AdventureQuest
   onStart: () => void
   onLater: () => void
 }

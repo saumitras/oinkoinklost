@@ -71,6 +71,27 @@ PUMPKIN_NPC_VOICE_PROFILES: dict[str, tuple[str, str]] = {
     ),
 }
 
+MOON_NPC_VOICE_PROFILES: dict[str, tuple[str, str]] = {
+    "captain_owl": (
+        "cedar",
+        "Speak as Captain Hoot, a calm, wise space-station owl welcoming one small explorer. "
+        "Use a warm low register, unhurried natural phrasing, dry gentle humor, and a reassuring smile. "
+        "Give each Hoo a soft owl-like lift without turning it into a cartoon catchphrase. Do not sound like a narrator or announcer.",
+    ),
+    "robot_rabbit": (
+        "marin",
+        "Speak as Bun-Bit, a friendly young robot rabbit who is delighted to help Piglet. "
+        "Use bright natural energy, precise but playful rhythm, and tiny cheerful lifts on Boop. "
+        "Sound warm and companionable rather than mechanical, theatrical, or sing-song.",
+    ),
+    "chef_cat": (
+        "coral",
+        "Speak as Mira, a cozy, quick-witted space-cafe cat chatting with a small friend. "
+        "Use warm conversational phrasing, lively curiosity, a gentle purr in the tone, and an audible smile. "
+        "Let Meow feel playful, then settle into believable speech. Avoid forced excitement, narration, and baby talk.",
+    ),
+}
+
 
 def npc_voice(index: int) -> str:
     return NPC_VOICES[index % len(NPC_VOICES)]
@@ -80,9 +101,15 @@ def is_pumpkin_bible(bible: GameBible | None) -> bool:
     return bool(bible and {npc.id for npc in bible.npcs} == {"cow", "goat", "duck"})
 
 
+def is_moon_bible(bible: GameBible | None) -> bool:
+    return bool(bible and {npc.id for npc in bible.npcs} == {"captain_owl", "robot_rabbit", "chef_cat"})
+
+
 def npc_tts_profile(npc: NPC, bible: GameBible | None = None) -> tuple[str, str]:
     if is_pumpkin_bible(bible) and npc.id in PUMPKIN_NPC_VOICE_PROFILES:
         return PUMPKIN_NPC_VOICE_PROFILES[npc.id]
+    if is_moon_bible(bible) and npc.id in MOON_NPC_VOICE_PROFILES:
+        return MOON_NPC_VOICE_PROFILES[npc.id]
     return npc.ttsVoice or "alloy", DEFAULT_TTS_INSTRUCTIONS
 
 

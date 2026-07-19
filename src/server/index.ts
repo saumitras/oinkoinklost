@@ -31,7 +31,7 @@ app.post('/api/game', async (req, res) => {
   if (modResult.flagged) {
     return res.status(403).json({
       error: 'idea_flagged',
-      suggestions: ['a pumpkin farm in autumn', 'a tiny seaside village', 'a dinosaur birthday party'],
+      suggestions: ['a pumpkin farm in autumn', 'a cozy space station on the moon'],
     })
   }
 
