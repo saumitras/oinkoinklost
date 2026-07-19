@@ -43,9 +43,11 @@ DEFAULT_TTS_INSTRUCTIONS = (
 )
 
 PIGLET_TTS_INSTRUCTIONS = (
-    "Speak as Piglet, a small, brave, curious young pig talking directly to a friendly animal. "
-    "Use a light, warm, youthful voice with natural conversational rhythm and a little hopeful energy. "
-    "Keep the performance sincere and clear, never theatrical, squeaky, sing-song, or babyish."
+    "Perform as Piglet, a very young storybook pig with the voice and energy of a cheerful kindergarten-age child. "
+    "Use a small, bright, slightly higher-pitched voice, a soft rounded tone, bouncy curious intonation, and an audible smile. "
+    "Sound sweet, innocent, eager, and a tiny bit shy-brave, as if asking a trusted animal friend for help. "
+    "Keep each line playful, intimate, and easy to understand. Do not sound like an adult, narrator, teacher, or announcer, "
+    "and do not add words that are not in the script."
 )
 
 PUMPKIN_NPC_VOICE_PROFILES: dict[str, tuple[str, str]] = {
