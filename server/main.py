@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import html
 import json
 import random
 import shutil
@@ -10,6 +11,7 @@ from nanoid import generate as nanoid
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from server.config import ASSETS_DIR, PORT
@@ -23,6 +25,9 @@ from server.ai import (
 )
 from server.schema import NPCModelReply, PreloadedNPCReply, SuggestedReply
 from server.storage import save_asset
+from server.adventure_library import (
+    is_library_ready, list_adventures, lookup_adventures, valid_game_id,
+)
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -59,6 +64,10 @@ class NPCChatBody(BaseModel):
 
 class PigletSpeechBody(BaseModel):
     text: str
+
+
+class AdventureLookupBody(BaseModel):
+    ids: list[str] = []
 
 
 # Short-lived dev-mode memory. A session is stable while the current adventure
@@ -147,6 +156,46 @@ async def list_presets():
     return presets
 
 
+@app.get("/api/adventures")
+async def browse_adventures(query: str = "", offset: int = 0, limit: int = 20):
+    return list_adventures(
+        query=query,
+        offset=max(0, offset),
+        limit=min(20, max(1, limit)),
+    )
+
+
+@app.post("/api/adventures/lookup")
+async def adventure_history(body: AdventureLookupBody):
+    return {"items": lookup_adventures(body.ids[:40])}
+
+
+@app.post("/api/adventures/{adventure_id}/play", status_code=201)
+async def play_library_adventure(adventure_id: str):
+    if not valid_game_id(adventure_id):
+        raise HTTPException(status_code=404, detail="adventure_not_found")
+    template = get_or_load_game(adventure_id)
+    if not template or not is_library_ready(template):
+        raise HTTPException(status_code=404, detail="adventure_not_found")
+
+    game = template.model_copy(deep=True)
+    game.id = nanoid()
+    game.createdAt = datetime.now(timezone.utc).isoformat()
+    game.fromWarmPool = True
+    game.librarySourceId = template.librarySourceId or template.id
+
+    preset_slug = next((
+        slug for slug, meta in PRESET_WORLDS.items()
+        if meta["templateId"] == game.librarySourceId
+    ), None)
+    if preset_slug in CURATED_CLUE_OPENERS:
+        apply_curated_mystery_variant(game, preset_slug)
+
+    set_game(game)
+    snapshot_game(game)
+    return {"gameId": game.id, "sourceAdventureId": game.librarySourceId}
+
+
 @app.post("/api/presets/{slug}", status_code=201)
 async def start_preset(slug: str):
     meta = PRESET_WORLDS.get(slug)
@@ -162,6 +211,7 @@ async def start_preset(slug: str):
     game.id = nanoid()
     game.createdAt = datetime.now(timezone.utc).isoformat()
     game.fromWarmPool = True
+    game.librarySourceId = meta["templateId"]
     if slug in CURATED_CLUE_OPENERS:
         apply_curated_mystery_variant(game, slug)
     for npc in game.bible.npcs:  # type: ignore[union-attr]
@@ -173,7 +223,7 @@ async def start_preset(slug: str):
             )
     set_game(game)
     snapshot_game(game)
-    return {"gameId": game.id, "preset": slug}
+    return {"gameId": game.id, "preset": slug, "sourceAdventureId": meta["templateId"]}
 
 
 @app.get("/api/game/{game_id}/events")
@@ -230,6 +280,49 @@ async def get_game(game_id: str):
     if not game:
         raise HTTPException(status_code=404)
     return game.model_dump()
+
+
+@app.get("/share/{game_id}", response_class=HTMLResponse)
+async def share_adventure_card(game_id: str, request: Request):
+    """WhatsApp-readable postcard metadata, followed by a playable redirect."""
+    if not valid_game_id(game_id):
+        raise HTTPException(status_code=404)
+    game = get_or_load_game(game_id)
+    if not game or not game.bible:
+        raise HTTPException(status_code=404)
+
+    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme).split(",", 1)[0]
+    origin = f"{forwarded_proto}://{request.headers.get('host', request.url.netloc)}"
+    source_id = game.librarySourceId if game.librarySourceId and valid_game_id(game.librarySourceId) else game.id
+    play_url = f"{origin}/?adventure={source_id}"
+    image_path = game.assets.reunionPhotoUrl or game.assets.streetUrl
+    image_url = f"{origin}{image_path}" if image_path and image_path.startswith("/") else image_path
+    title = html.escape(f"You found Mama! · {game.bible.title}", quote=True)
+    description = html.escape(
+        f"Play the {game.bible.setting.name} adventure and help Piglet find Mama.",
+        quote=True,
+    )
+    safe_play_url = html.escape(play_url, quote=True)
+    safe_image_url = html.escape(image_url or "", quote=True)
+    page = f"""<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title}</title>
+<meta name="description" content="{description}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Oink Oink Lost">
+<meta property="og:title" content="{title}">
+<meta property="og:description" content="{description}">
+<meta property="og:url" content="{html.escape(f'{origin}{request.url.path}', quote=True)}">
+<meta property="og:image" content="{safe_image_url}">
+<meta property="og:image:alt" content="Piglet reunited with Mama Pig">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="{safe_image_url}">
+<meta http-equiv="refresh" content="0;url={safe_play_url}">
+</head><body><p>Opening <a href="{safe_play_url}">{title}</a>…</p>
+<script>window.location.replace({json.dumps(play_url)})</script></body></html>"""
+    return HTMLResponse(page, headers={"Cache-Control": "no-cache"})
 
 
 @app.post("/api/transcribe")

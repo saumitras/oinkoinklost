@@ -10,6 +10,7 @@ interface Props {
 
 export function ReunionScene({ game, onNewAdventure, accomplishments = [] }: Props) {
   const [photoUrl, setPhotoUrl] = useState(game.assets.reunionPhotoUrl)
+  const [shareStatus, setShareStatus] = useState('')
 
   // Poll for reunion photo if not ready yet
   useEffect(() => {
@@ -32,15 +33,70 @@ export function ReunionScene({ game, onNewAdventure, accomplishments = [] }: Pro
   }, [game.assets.audio])
 
   async function shareAdventure() {
+    const adventureId = game.librarySourceId ?? game.id
     const shareData = {
       title: game.bible?.title ?? 'Oink Oink Lost',
       text: `I helped Piglet find Mama in ${game.bible?.setting.name ?? 'a magical world'}!`,
-      url: window.location.href,
+      url: `${window.location.origin}/?adventure=${encodeURIComponent(adventureId)}`,
     }
     if (navigator.share) {
       await navigator.share(shareData).catch(() => {})
     } else {
       await navigator.clipboard?.writeText(`${shareData.text} ${shareData.url}`).catch(() => {})
+      setShareStatus('Adventure link copied!')
+    }
+  }
+
+  async function shareOnWhatsApp() {
+    const shareUrl = `${window.location.origin}/share/${encodeURIComponent(game.id)}`
+    const text = `I helped Piglet find Mama in ${game.bible?.setting.name ?? 'a magical world'}! Play this Oink Oink Lost adventure: ${shareUrl}`
+
+    // Mobile browsers can hand an actual image file to WhatsApp through the
+    // native share sheet. Desktop wa.me links cannot attach a file, so their
+    // fallback uses the same reunion image as the link's Open Graph preview.
+    if (photoUrl && navigator.share && navigator.canShare) {
+      try {
+        const response = await fetch(photoUrl)
+        if (!response.ok) throw new Error('Reunion photo unavailable')
+        const blob = await response.blob()
+        const photo = new File([blob], 'piglet-and-mama-reunion.png', { type: blob.type || 'image/png' })
+        const shareData = {
+          title: game.bible?.title ?? 'Oink Oink Lost',
+          text,
+          files: [photo],
+        }
+        if (navigator.canShare(shareData)) {
+          await navigator.share(shareData)
+          setShareStatus('Reunion photo shared!')
+          return
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+      }
+    }
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer')
+    setShareStatus(photoUrl
+      ? 'WhatsApp opened with a reunion-photo preview.'
+      : 'WhatsApp opened with the adventure link.')
+  }
+
+  async function downloadPhoto() {
+    if (!photoUrl) return
+    const title = (game.bible?.setting.name ?? 'oink-oink-lost').toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    try {
+      const response = await fetch(photoUrl)
+      if (!response.ok) throw new Error('Photo unavailable')
+      const blobUrl = URL.createObjectURL(await response.blob())
+      const anchor = document.createElement('a')
+      anchor.href = blobUrl
+      anchor.download = `${title || 'oink-oink-lost'}-reunion.png`
+      anchor.click()
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
+      setShareStatus('Reunion photo downloaded!')
+    } catch {
+      window.open(photoUrl, '_blank', 'noopener,noreferrer')
     }
   }
 
@@ -84,8 +140,11 @@ export function ReunionScene({ game, onNewAdventure, accomplishments = [] }: Pro
         )}
         <div style={styles.actions}>
           <button style={styles.shareBtn} onClick={shareAdventure}>📮 Share postcard</button>
+          <button style={styles.whatsappBtn} onClick={shareOnWhatsApp} disabled={!photoUrl}>WhatsApp photo</button>
+          <button style={styles.downloadBtn} onClick={downloadPhoto} disabled={!photoUrl}>⇩ Download photo</button>
           <button style={styles.btn} onClick={onNewAdventure}>🌟 New Adventure!</button>
         </div>
+        {shareStatus && <div style={styles.shareStatus} role="status">{shareStatus}</div>}
       </div>
     </div>
   )
@@ -120,7 +179,7 @@ const styles: Record<string, React.CSSProperties> = {
   emoji: { fontSize: 56, marginBottom: 8 },
   title: { fontSize: 28, fontWeight: 800, color: '#e07b54', margin: '0 0 20px' },
   photoFrame: { position: 'relative', overflow: 'hidden', borderRadius: 16, marginBottom: 20, background: '#f5e6d3' },
-  photo: { display: 'block', width: '100%', borderRadius: 16, animation: 'reunion-zoom 7s ease-out both' },
+  photo: { display: 'block', width: '100%', borderRadius: 16, animation: 'reunion-zoom 10s ease-in-out infinite', transformOrigin: 'center center' },
   photoGlow: { position: 'absolute', right: 14, top: 10, fontSize: 34, animation: 'bounce 1.8s ease-in-out infinite' },
   photoPlaceholder: {
     width: '100%',
@@ -156,4 +215,13 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '14px 24px', fontSize: 16, fontWeight: 800, background: '#f5e6d3',
     color: '#9b573d', border: 'none', borderRadius: 12, cursor: 'pointer',
   },
+  whatsappBtn: {
+    padding: '14px 20px', fontSize: 15, fontWeight: 850, background: '#25D366',
+    color: 'white', border: 'none', borderRadius: 12, cursor: 'pointer',
+  },
+  downloadBtn: {
+    padding: '14px 20px', fontSize: 15, fontWeight: 850, background: '#edf3ff',
+    color: '#41618e', border: 'none', borderRadius: 12, cursor: 'pointer',
+  },
+  shareStatus: { marginTop: 10, color: '#57825f', fontSize: 12, fontWeight: 850 },
 }

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { unlockAudio } from '../game/audio'
 import { useGameStore } from '../game/store'
+import { rememberAdventure } from '../game/adventureHistory'
+import { AdventureBrowser } from './AdventureBrowser'
 
 interface Props {
   onStart: (gameId: string, options: { microQuestsEnabled: boolean }) => void
@@ -22,6 +24,7 @@ export function TitleScreen({ onStart }: Props) {
   const [loading, setLoading] = useState(false)
   const [loadingPreset, setLoadingPreset] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [showBrowser, setShowBrowser] = useState(false)
   const unlockAudioFn = useGameStore(s => s.unlockAudio)
 
   useEffect(() => {
@@ -60,6 +63,7 @@ export function TitleScreen({ onStart }: Props) {
         }
         return
       }
+      rememberAdventure(data.gameId)
       onStart(data.gameId, { microQuestsEnabled })
     } catch {
       setError('Could not connect to the server.')
@@ -76,6 +80,7 @@ export function TitleScreen({ onStart }: Props) {
       const res = await fetch(`/api/presets/${preset.slug}`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error('Preset unavailable')
+      rememberAdventure(data.sourceAdventureId ?? data.gameId)
       onStart(data.gameId, { microQuestsEnabled })
     } catch {
       setError(`${preset.title} is unavailable right now. Try another world!`)
@@ -90,6 +95,14 @@ export function TitleScreen({ onStart }: Props) {
   }
 
   const busy = loading || loadingPreset !== null
+
+  if (showBrowser) return (
+    <AdventureBrowser
+      microQuestsEnabled={microQuestsEnabled}
+      onBack={() => setShowBrowser(false)}
+      onStart={onStart}
+    />
+  )
 
   return (
     <div className="title-screen" style={styles.container}>
@@ -181,6 +194,15 @@ export function TitleScreen({ onStart }: Props) {
           🎲 Surprise me with a ready world
         </button>
 
+        <button className="title-browse-button" style={styles.browseBtn} onClick={() => setShowBrowser(true)} disabled={busy}>
+          <span style={styles.browseIcon}>🗺️</span>
+          <span style={styles.browseCopy}>
+            <strong>Browse all adventures</strong>
+            <small>Search worlds made by everyone and revisit your past adventures</small>
+          </span>
+          <span aria-hidden="true" style={styles.browseArrow}>→</span>
+        </button>
+
         {error && <p style={styles.error}>{error}</p>}
       </div>
     </div>
@@ -249,5 +271,14 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'block', margin: '13px auto 0', padding: '8px 13px', fontSize: 12, fontWeight: 800,
     background: 'transparent', color: '#b36c4d', border: 0, cursor: 'pointer',
   },
+  browseBtn: {
+    display: 'flex', alignItems: 'center', gap: 12, width: '100%', margin: '11px 0 0',
+    padding: '12px 15px', border: '2px solid #efd1c1', borderRadius: 16,
+    background: 'linear-gradient(110deg, #fff8f3, #fff0e6)', color: '#6d4433',
+    cursor: 'pointer', textAlign: 'left', boxShadow: '0 4px 12px rgba(92,55,36,0.08)',
+  },
+  browseIcon: { fontSize: 25 },
+  browseCopy: { display: 'grid', gap: 2, flex: 1, fontSize: 13 },
+  browseArrow: { fontSize: 20, color: '#d16f4b' },
   error: { color: '#c65f4d', margin: '12px 0 0', fontSize: 13, textAlign: 'center' },
 }

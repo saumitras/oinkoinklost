@@ -156,6 +156,27 @@ export interface Game {
   annotation?: ScreenAnnotation
   fromWarmPool: boolean
   cozyVisuals?: boolean
+  librarySourceId?: string
+}
+
+export interface AdventureSummary {
+  id: string
+  title: string
+  settingName: string
+  description: string
+  idea: string
+  previewUrl: string
+  reunionPhotoUrl?: string | null
+  createdAt: string
+  emoji: string
+}
+
+export interface AdventurePage {
+  items: AdventureSummary[]
+  offset: number
+  limit: number
+  total: number
+  hasMore: boolean
 }
 
 export interface SSEEvent {

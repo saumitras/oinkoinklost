@@ -191,3 +191,4 @@ class Game(BaseModel):
     annotation: Optional[ScreenAnnotation] = None
     fromWarmPool: bool = False
     cozyVisuals: bool = False
+    librarySourceId: Optional[str] = None

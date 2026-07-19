@@ -49,6 +49,8 @@ export function DialogueBubble({
   const [audioUrl, setAudioUrl] = useState<string | null>(preloadedOpener?.audioUrl ?? null)
   const [viewMode, setViewMode] = useState<'glass' | 'compact'>('glass')
   const [recording, setRecording] = useState(false)
+  const [requestingMic, setRequestingMic] = useState(false)
+  const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [transcribing, setTranscribing] = useState(false)
   const started = useRef(false)
   const knowsHint = useRef(hintAlreadyCollected)
@@ -56,6 +58,9 @@ export function DialogueBubble({
   const recorderRef = useRef<MediaRecorder | null>(null)
   const recordingWanted = useRef(false)
   const audioChunks = useRef<Blob[]>([])
+  const discardRecording = useRef(false)
+  const recordingTimer = useRef<number>(0)
+  const recordingTimeout = useRef<number>(0)
 
   async function playPigletSpeech(text: string): Promise<void> {
     if (!generatedPigletVoice) return speakText(text)
@@ -148,20 +153,32 @@ export function DialogueBubble({
   }, [onClose])
 
   useEffect(() => () => {
+    discardRecording.current = true
     recordingWanted.current = false
+    window.clearInterval(recordingTimer.current)
+    window.clearTimeout(recordingTimeout.current)
     const recorder = recorderRef.current
     if (recorder?.state === 'recording') recorder.stop()
     recorder?.stream.getTracks().forEach(track => track.stop())
   }, [])
 
-  async function startRecording(event: React.PointerEvent<HTMLButtonElement>) {
-    event.preventDefault()
-    if (loading || transcribing || recording) return
+  function stopRecording() {
+    recordingWanted.current = false
+    window.clearInterval(recordingTimer.current)
+    window.clearTimeout(recordingTimeout.current)
+    const recorder = recorderRef.current
+    if (recorder?.state === 'recording') recorder.stop()
+  }
+
+  async function startRecording() {
+    if (loading || transcribing || recording || requestingMic) return
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       setError('Voice input is not available in this browser. You can still type below.')
       return
     }
     recordingWanted.current = true
+    discardRecording.current = false
+    setRequestingMic(true)
     setError('')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -169,9 +186,11 @@ export function DialogueBubble({
         stream.getTracks().forEach(track => track.stop())
         return
       }
-      const preferredType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : ''
+      const preferredType = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+      ].find(type => MediaRecorder.isTypeSupported(type)) ?? ''
       const recorder = new MediaRecorder(stream, preferredType ? { mimeType: preferredType } : undefined)
       recorderRef.current = recorder
       audioChunks.current = []
@@ -179,8 +198,12 @@ export function DialogueBubble({
         if (chunkEvent.data.size) audioChunks.current.push(chunkEvent.data)
       }
       recorder.onstop = async () => {
+        window.clearInterval(recordingTimer.current)
+        window.clearTimeout(recordingTimeout.current)
         setRecording(false)
+        setRecordingSeconds(0)
         stream.getTracks().forEach(track => track.stop())
+        if (discardRecording.current) return
         const blob = new Blob(audioChunks.current, { type: recorder.mimeType || 'audio/webm' })
         if (!blob.size) return
         setTranscribing(true)
@@ -198,7 +221,7 @@ export function DialogueBubble({
           if (/\b(mama|mother|help.*find|seen her)\b/i.test(transcript) && onAskMama?.()) {
             onClose()
           } else {
-            requestTurn(transcript, 'typed')
+            requestTurn(transcript, 'typed', undefined, playPigletSpeech(transcript))
           }
         } catch (voiceError) {
           setError(voiceError instanceof Error ? voiceError.message : 'Voice input paused unexpectedly.')
@@ -207,20 +230,29 @@ export function DialogueBubble({
           recorderRef.current = null
         }
       }
-      recorder.start()
+      recorder.onerror = () => {
+        setError('Voice recording paused unexpectedly. Please try again.')
+        stopRecording()
+      }
+      recorder.start(250)
       setRecording(true)
-      ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
+      setRecordingSeconds(0)
+      const startedAt = Date.now()
+      recordingTimer.current = window.setInterval(() => {
+        setRecordingSeconds(Math.floor((Date.now() - startedAt) / 1000))
+      }, 250)
+      recordingTimeout.current = window.setTimeout(stopRecording, 30000)
     } catch {
       recordingWanted.current = false
       setError('Microphone access is needed for voice input. You can still type below.')
+    } finally {
+      setRequestingMic(false)
     }
   }
 
-  function stopRecording(event?: React.PointerEvent<HTMLButtonElement>) {
-    event?.preventDefault()
-    recordingWanted.current = false
-    const recorder = recorderRef.current
-    if (recorder?.state === 'recording') recorder.stop()
+  function toggleRecording() {
+    if (recording) stopRecording()
+    else startRecording()
   }
 
   function choose(suggestion: SuggestedNPCReply) {
@@ -324,9 +356,13 @@ export function DialogueBubble({
         </div>
 
         {error && <div style={styles.error}>{error}</div>}
-        {(recording || transcribing) && (
+        {(requestingMic || recording || transcribing) && (
           <div className="dialogue-voice-status" style={styles.voiceStatus} aria-live="polite">
-            {recording ? '🎙️ Listening… release when you are done' : '✨ Turning your voice into words…'}
+            {requestingMic
+              ? '🎙️ Opening the microphone…'
+              : recording
+                ? `🔴 Listening… ${recordingSeconds}s · tap the red button when done`
+                : '✨ Turning your voice into words…'}
           </div>
         )}
 
@@ -352,13 +388,10 @@ export function DialogueBubble({
             className="dialogue-mic-button"
             style={{ ...styles.micBtn, ...(recording ? styles.micBtnRecording : {}) }}
             type="button"
-            onPointerDown={startRecording}
-            onPointerUp={stopRecording}
-            onPointerCancel={stopRecording}
-            onContextMenu={event => event.preventDefault()}
-            disabled={loading || transcribing}
-            aria-label="Hold to talk"
-            title="Hold to talk"
+            onClick={toggleRecording}
+            disabled={loading || transcribing || requestingMic}
+            aria-label={recording ? 'Stop recording' : 'Start voice input'}
+            title={recording ? 'Tap to stop' : 'Tap to talk'}
           >{recording ? '●' : '🎙️'}</button>
           <input
             style={styles.input}

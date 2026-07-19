@@ -23,8 +23,11 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   100% { transform: translateY(115vh) rotate(720deg); opacity: 0.15; }
 }
 @keyframes reunion-zoom {
-  from { transform: scale(1.07); filter: saturate(0.9) brightness(0.92); }
-  to { transform: scale(1); filter: saturate(1.08) brightness(1.03); }
+  0%, 100% { transform: scale(1.015); filter: saturate(0.98) brightness(0.98); }
+  50% { transform: scale(1.12); filter: saturate(1.1) brightness(1.04); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reunion-photo { animation: none !important; }
 }
 @keyframes world-drift {
   from { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 0; }
@@ -45,6 +48,8 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 }
 .world-effects .world-star::before { content: '✦'; }
 .world-effects .world-orb::before { content: '·'; }
+.adventure-card:hover { transform: translateY(-4px); box-shadow: 0 14px 32px rgba(64,37,24,0.3) !important; }
+.adventure-card:hover img { transform: scale(1.04); }
 
 @media (max-width: 600px) {
   .audio-label { display: none; }
@@ -64,6 +69,12 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   .title-preset-card { height: 158px !important; border-radius: 15px !important; }
   .title-custom-row { flex-direction: column !important; }
   .title-custom-row button { width: 100%; min-height: 48px; }
+  .title-browse-button { min-height: 64px; }
+  .adventure-browser { padding: max(15px, env(safe-area-inset-top)) 11px max(40px, env(safe-area-inset-bottom)) !important; }
+  .adventure-global-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
+  .adventure-card { height: 245px !important; border-radius: 16px !important; }
+  .adventure-card-compact { height: 220px !important; }
+  .adventure-past-row { grid-auto-columns: minmax(220px, 76vw) !important; }
 
   .game-shell { height: 100dvh !important; min-height: 100dvh !important; }
   .game-top-controls {
@@ -185,6 +196,12 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
     grid-template-rows: repeat(3, 48px) !important;
   }
   .game-dpad button { min-width: 48px; min-height: 48px; }
+  .adventure-global-grid { grid-template-columns: 1fr !important; }
+  .adventure-card { height: 265px !important; }
+}
+
+@media (min-width: 601px) and (max-width: 980px) {
+  .adventure-global-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
 }
 
 @media (max-height: 500px) and (orientation: landscape) {
