@@ -35,10 +35,17 @@ THEME_STYLE_BASE = (
 
 NPC_VOICES = ["alloy", "echo", "fable"]
 NARRATOR_VOICE = "nova"
+PIGLET_VOICE = "shimmer"
 
 DEFAULT_TTS_INSTRUCTIONS = (
     "Speak warmly and clearly at a relaxed conversational pace. "
     "Use natural intonation and avoid exaggerated baby talk."
+)
+
+PIGLET_TTS_INSTRUCTIONS = (
+    "Speak as Piglet, a small, brave, curious young pig talking directly to a friendly animal. "
+    "Use a light, warm, youthful voice with natural conversational rhythm and a little hopeful energy. "
+    "Keep the performance sincere and clear, never theatrical, squeaky, sing-song, or babyish."
 )
 
 PUMPKIN_NPC_VOICE_PROFILES: dict[str, tuple[str, str]] = {

@@ -11,7 +11,7 @@ interface Props {
   onClueGranted: (hintId: string) => void
   onClose: () => void
   onAskMama?: () => boolean
-  speakPlayerChoices?: boolean
+  generatedPigletVoice?: boolean
 }
 
 interface ChatLine {
@@ -36,7 +36,7 @@ export function DialogueBubble({
   onClueGranted,
   onClose,
   onAskMama,
-  speakPlayerChoices = true,
+  generatedPigletVoice = false,
 }: Props) {
   const [history, setHistory] = useState<ChatLine[]>(preloadedOpener
     ? [{ speaker: npc.name, text: preloadedOpener.reply }]
@@ -56,6 +56,23 @@ export function DialogueBubble({
   const recorderRef = useRef<MediaRecorder | null>(null)
   const recordingWanted = useRef(false)
   const audioChunks = useRef<Blob[]>([])
+
+  async function playPigletSpeech(text: string): Promise<void> {
+    if (!generatedPigletVoice) return speakText(text)
+    try {
+      const response = await fetch(`/api/game/${gameId}/piglet/speech`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      if (!response.ok) throw new Error(`Piglet speech failed (${response.status})`)
+      const result: { audioUrl?: string } = await response.json()
+      if (!result.audioUrl) throw new Error('Piglet speech was unavailable')
+      await playAudio(result.audioUrl)
+    } catch {
+      await speakText(text)
+    }
+  }
 
   async function requestTurn(
     message: string,
@@ -214,7 +231,7 @@ export function DialogueBubble({
     }
     if (suggestion.intent === 'ask_mama' && onAskMama) {
       stopAudio()
-      const playerSpeech = speakPlayerChoices ? speakText(suggestion.text) : Promise.resolve()
+      const playerSpeech = playPigletSpeech(suggestion.text)
       playerSpeech.then(() => {
         if (onAskMama()) onClose()
         else requestTurn(suggestion.text, 'suggestion', suggestion.intent)
@@ -222,7 +239,7 @@ export function DialogueBubble({
       return
     }
     stopAudio()
-    const playerSpeech = speakPlayerChoices ? speakText(suggestion.text) : Promise.resolve()
+    const playerSpeech = playPigletSpeech(suggestion.text)
     requestTurn(suggestion.text, 'suggestion', suggestion.intent, playerSpeech)
   }
 
@@ -233,11 +250,11 @@ export function DialogueBubble({
     setInput('')
     if (/\b(mama|mother|help.*find|seen her)\b/i.test(message) && onAskMama?.()) {
       stopAudio()
-      if (speakPlayerChoices) speakText(message).finally(onClose)
-      else onClose()
+      playPigletSpeech(message).finally(onClose)
       return
     }
-    requestTurn(message, 'typed')
+    stopAudio()
+    requestTurn(message, 'typed', undefined, playPigletSpeech(message))
   }
 
   function leave() {

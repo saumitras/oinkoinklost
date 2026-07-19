@@ -19,6 +19,7 @@ from server.events import subscribe, unsubscribe, emit
 from server.ai import (
     build_npc_opener, moderate_idea, generate_reunion_photo,
     generate_npc_reply, generate_tts, npc_tts_profile, transcribe_audio,
+    PIGLET_TTS_INSTRUCTIONS, PIGLET_VOICE,
 )
 from server.schema import NPCModelReply, PreloadedNPCReply, SuggestedReply
 from server.storage import save_asset
@@ -54,6 +55,10 @@ class NPCChatBody(BaseModel):
     source: Literal["start", "suggestion", "typed"] = "typed"
     intent: Optional[Literal["ask_mama", "small_talk", "goodbye"]] = None
     hintAlreadyCollected: bool = False
+
+
+class PigletSpeechBody(BaseModel):
+    text: str
 
 
 # Short-lived dev-mode memory. A session is stable while the current adventure
@@ -245,6 +250,34 @@ async def transcribe(request: Request):
         print(f"[transcribe] {exc}")
         raise HTTPException(status_code=502, detail="transcription_failed") from exc
     return {"text": text}
+
+
+@app.post("/api/game/{game_id}/piglet/speech")
+async def piglet_speech(game_id: str, body: PigletSpeechBody):
+    game = get_or_load_game(game_id)
+    if not game:
+        raise HTTPException(status_code=404)
+
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="empty_text")
+    if len(text) > 300:
+        raise HTTPException(status_code=400, detail="text_too_long")
+
+    digest = hashlib.sha256(
+        f"{PIGLET_VOICE}:{PIGLET_TTS_INSTRUCTIONS}:{text}".encode()
+    ).hexdigest()[:16]
+    asset_key = f"shared-audio/piglet_{digest}.mp3"
+    asset_path = ASSETS_DIR / asset_key
+    if not asset_path.exists():
+        try:
+            audio = await generate_tts(text, PIGLET_VOICE, PIGLET_TTS_INSTRUCTIONS)
+            save_asset(asset_key, audio)
+        except Exception as exc:
+            print(f"[piglet-tts:{game_id}] {exc}")
+            raise HTTPException(status_code=502, detail="speech_generation_failed") from exc
+
+    return {"audioUrl": f"/assets/{asset_key}"}
 
 
 @app.post("/api/game/{game_id}/npcs/{npc_id}/chat")

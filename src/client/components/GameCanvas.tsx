@@ -497,7 +497,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
           onClueGranted={onConversationClue}
           onClose={onDialogueClose}
           onAskMama={() => interceptMamaQuestion(activeNpc.id, activeHint.id)}
-          speakPlayerChoices={!pumpkinWorld}
+          generatedPigletVoice={pumpkinWorld}
         />
       )}
 
