@@ -21,7 +21,7 @@ export interface AdventureQuest {
   objects: QuestObject[]
 }
 
-export type CuratedAdventure = 'pumpkin' | 'moon'
+export type CuratedAdventure = 'pumpkin' | 'moon' | 'cloud'
 
 const PUMPKIN_QUESTS: AdventureQuest[] = [
   {
@@ -117,6 +117,7 @@ export function curatedAdventure(game: Game): CuratedAdventure | null {
   const name = game.bible?.setting.name.toLowerCase() ?? ''
   if (name.includes('pumpkin')) return 'pumpkin'
   if (name.includes('moon station')) return 'moon'
+  if (name.includes('cloud toy shop')) return 'cloud'
   return null
 }
 

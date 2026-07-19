@@ -87,13 +87,24 @@ PRESET_WORLDS = {
         "subtitle": "Moon views, space gardens, and cosmic clues",
         "emoji": "🚀",
     },
+    "toy-shop-clouds": {
+        "templateId": "cjfwNIfLt411ZZKDOC0Qo",
+        "title": "Cloud Toy Shop",
+        "subtitle": "Floating toys, rainbow bridges, and sky-high clues",
+        "emoji": "☁️",
+    },
 }
 
 
 CURATED_CLUE_OPENERS = {
     "pumpkin-farm": {"cow": "Moo… ", "goat": "Baa—", "duck": "Quack! "},
     "moon-station": {"captain_owl": "Hoo… ", "robot_rabbit": "Boop! ", "chef_cat": "Meow! "},
+    "toy-shop-clouds": {"npc-parrot": "Squawk! ", "npc-bunny": "Sniff-sniff! ", "npc-bear": "Grr-hmm… "},
 }
+
+
+def mama_reply_variant_key(npc_id: str, eliminated_id: str) -> str:
+    return f"{npc_id}:{eliminated_id}"
 
 
 def ensure_preloaded_mama_replies(game) -> None:
@@ -128,11 +139,22 @@ def apply_curated_mystery_variant(game, slug: str) -> None:
         opener = clue_openers.get(hint.npcId, "Hmm… ")
         hint.text = f"{opener}Mama didn't stop at {eliminated.name}. I'm sure of that."
         hint.eliminatesLocationIds = [eliminated.id]
-        # The shipped clip describes the template's original mystery. Dynamic
-        # dialogue speaks this playthrough's variant; replay falls back to the
-        # browser voice so no additional generation is needed.
+        # Use the pre-generated performance that matches this playthrough's
+        # randomized clue. Older presets without variants still fall back to
+        # deterministic text and can be upgraded without breaking playability.
         game.assets.audio.pop(f"npc_{hint.npcId}.hint", None)
         game.assets.npcMamaReplies.pop(hint.npcId, None)
+        turn = build_npc_mama_reply(
+            next(npc for npc in game.bible.npcs if npc.id == hint.npcId),
+            game.bible,
+        )
+        variant = game.assets.npcMamaReplyVariants.get(
+            mama_reply_variant_key(hint.npcId, eliminated.id)
+        )
+        if variant and variant.reply == turn.reply:
+            game.assets.npcMamaReplies[hint.npcId] = variant
+            if variant.audioUrl:
+                game.assets.audio[f"npc_{hint.npcId}.hint"] = variant.audioUrl
     game.bible.verification = (
         f"This playthrough eliminates {', '.join(candidate.name for candidate in alternatives)}, "
         f"leaving only {final.name}."

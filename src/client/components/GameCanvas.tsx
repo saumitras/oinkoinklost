@@ -45,6 +45,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
   const [dialogue, setDialogue] = useState<{ npcId: string; sessionId: string } | null>(null)
   const conversationSessions = useRef<Record<string, string>>({})
   const pendingPickerAfterDialogue = useRef(false)
+  const pickerTimer = useRef<number>(0)
   const [toast, setToast] = useState('')
   const toastTimer = useRef<number>(0)
   const toastVersion = useRef(0)
@@ -98,7 +99,10 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
 
   useEffect(() => {
     startBackgroundMusic('/theme3.mp3').catch(console.error)
-    return () => stopBackgroundMusic()
+    return () => {
+      window.clearTimeout(pickerTimer.current)
+      stopBackgroundMusic()
+    }
   }, [])
 
   // Poll for background-completed assets (rooms, TTS)
@@ -246,15 +250,25 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
     return () => window.removeEventListener('keydown', onKey)
   }, [handleInteract, dialogue])
 
+  function showFinalQuestionAfterClues() {
+    const s = useGameStore.getState()
+    const currentGame = s.game ?? game
+    const requiredHints = currentGame.bible?.hints.length ?? 0
+    if (!requiredHints || s.collectedHintIds.length < requiredHints || s.solved || s.showReunion) return
+
+    pendingPickerAfterDialogue.current = false
+    window.clearTimeout(pickerTimer.current)
+    const narratorUrl = currentGame.assets.audio['narrator.allHints']
+    if (narratorUrl) playAudio(narratorUrl).catch(() => {})
+    pickerTimer.current = window.setTimeout(() => {
+      const latest = useGameStore.getState()
+      if (!latest.solved && !latest.showReunion) latest.setShowPicker(true)
+    }, 1600)
+  }
+
   function onDialogueClose() {
     setDialogue(null)
-    if (pendingPickerAfterDialogue.current) {
-      pendingPickerAfterDialogue.current = false
-      const currentGame = useGameStore.getState().game ?? game
-      const narratorUrl = currentGame.assets.audio['narrator.allHints']
-      if (narratorUrl) playAudio(narratorUrl).catch(() => {})
-      setTimeout(() => useGameStore.getState().setShowPicker(true), 1600)
-    }
+    if (pendingPickerAfterDialogue.current) showFinalQuestionAfterClues()
   }
 
   function onConversationClue(hintId: string) {
@@ -271,12 +285,18 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
 
   function returnToStreet() {
     const s = useGameStore.getState()
+    const currentGame = s.game ?? game
+    const requiredHints = currentGame.bible?.hints.length ?? 0
+    const shouldShowFinalQuestion = !s.solved
+      && requiredHints > 0
+      && s.collectedHintIds.length >= requiredHints
     stopAudio()
     setDialogue(null)
     setQuestBrief(null)
     setRoomQuestObjects(null)
     s.setScreen('street')
-    loadStreetScene(s.game ?? game)
+    loadStreetScene(currentGame)
+    if (shouldShowFinalQuestion) showFinalQuestionAfterClues()
   }
 
   function onSolved() {
@@ -541,7 +561,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
   )
 }
 
-function WorldEffects({ theme }: { theme: 'pumpkin' | 'moon' }) {
+function WorldEffects({ theme }: { theme: 'pumpkin' | 'moon' | 'cloud' }) {
   return (
     <div className={`world-effects world-effects-${theme}`} aria-hidden="true">
       {Array.from({ length: 14 }, (_, index) => (

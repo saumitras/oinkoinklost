@@ -10,7 +10,9 @@ from google import genai
 from google.genai import types as genai_types
 
 from server.config import (
-    OPENAI_API_KEY, GEMINI_API_KEY, TEXT_MODEL, NPC_MODEL, IMAGE_MODEL,
+    OPENAI_API_KEY, GEMINI_API_KEY, TEXT_MODEL, NPC_MODEL,
+    IMAGE_PROVIDER, GEMINI_IMAGE_MODEL, OPENAI_IMAGE_MODEL,
+    OPENAI_IMAGE_QUALITY, OPENAI_IMAGE_SIZE,
     TTS_MODEL, TRANSCRIBE_MODEL, MODERATION_MODEL,
 )
 from server.cache import cache_get_bytes, cache_set_bytes, cache_get_json, cache_set_json
@@ -18,7 +20,7 @@ from server.schema import GameBible, ScreenAnnotation, RoomAnnotation, NPCModelR
 from server.schema_utils import make_strict_schema
 
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 COZY_STYLE_BLOCK = (
     "STYLE: Cozy children's storybook watercolor illustration. Soft pastel palette, "
@@ -92,6 +94,28 @@ MOON_NPC_VOICE_PROFILES: dict[str, tuple[str, str]] = {
     ),
 }
 
+CLOUD_NPC_VOICE_PROFILES: dict[str, tuple[str, str]] = {
+    "npc-parrot": (
+        "coral",
+        "Speak as Pippa, a bright, chatty toy-shop parrot talking naturally to one small friend. "
+        "Use quick, crisp conversational phrasing, playful curiosity, and an audible smile. "
+        "Give Squawk a light bird-like flourish, then settle into warm ordinary speech. "
+        "Do not sound like a narrator, announcer, or exaggerated cartoon character, and do not use baby talk.",
+    ),
+    "npc-bunny": (
+        "marin",
+        "Speak as Bobo, a gentle young cloud-shop bunny talking softly with Piglet. "
+        "Use a warm, slightly higher voice, calm bouncy cadence, shy curiosity, and small natural pauses. "
+        "Let Sniff-sniff feel playful and subtle. Do not sound mechanical, theatrical, sing-song, or babyish.",
+    ),
+    "npc-bear": (
+        "cedar",
+        "Speak as Bruno, a patient, cozy toy-shop bear chatting with one small friend. "
+        "Use a warm low register, unhurried natural phrasing, gentle humor, and a reassuring smile. "
+        "Make Grr-hmm soft and thoughtful, never threatening. Do not sound like a narrator or announcer.",
+    ),
+}
+
 
 def npc_voice(index: int) -> str:
     return NPC_VOICES[index % len(NPC_VOICES)]
@@ -105,11 +129,17 @@ def is_moon_bible(bible: GameBible | None) -> bool:
     return bool(bible and {npc.id for npc in bible.npcs} == {"captain_owl", "robot_rabbit", "chef_cat"})
 
 
+def is_cloud_bible(bible: GameBible | None) -> bool:
+    return bool(bible and {npc.id for npc in bible.npcs} == {"npc-parrot", "npc-bunny", "npc-bear"})
+
+
 def npc_tts_profile(npc: NPC, bible: GameBible | None = None) -> tuple[str, str]:
     if is_pumpkin_bible(bible) and npc.id in PUMPKIN_NPC_VOICE_PROFILES:
         return PUMPKIN_NPC_VOICE_PROFILES[npc.id]
     if is_moon_bible(bible) and npc.id in MOON_NPC_VOICE_PROFILES:
         return MOON_NPC_VOICE_PROFILES[npc.id]
+    if is_cloud_bible(bible) and npc.id in CLOUD_NPC_VOICE_PROFILES:
+        return CLOUD_NPC_VOICE_PROFILES[npc.id]
     return npc.ttsVoice or "alloy", DEFAULT_TTS_INSTRUCTIONS
 
 
@@ -489,7 +519,7 @@ async def extract_room_annotation(room_b64: str) -> RoomAnnotation:
     return annotation
 
 
-# ── Image generation (Nano Banana) ────────────────────────────────────────────
+# ── Image generation ──────────────────────────────────────────────────────────
 
 def _visual_style(bible: GameBible, cozy_visuals: bool = False) -> str:
     if cozy_visuals:
@@ -507,7 +537,7 @@ VISUAL DIRECTION:
 - Medium: {direction.imageStyle}
 - Avoid: {avoid}"""
 
-def _extract_image_bytes(response) -> bytes:
+def _extract_gemini_image_bytes(response) -> bytes:
     for part in response.candidates[0].content.parts:
         if part.inline_data:
             raw = part.inline_data.data
@@ -515,26 +545,60 @@ def _extract_image_bytes(response) -> bytes:
     raise RuntimeError("No image in Gemini response")
 
 
+def _extract_openai_image_bytes(response) -> bytes:
+    if not response.data or not response.data[0].b64_json:
+        raise RuntimeError("No image in OpenAI response")
+    return base64.b64decode(response.data[0].b64_json)
+
+
 async def _generate_image(prompt: str, reference_png: bytes | None = None) -> bytes:
-    cache_key = prompt + (f"|ref:{hashlib.sha256(reference_png).hexdigest()[:16]}" if reference_png else "")
+    provider_config = (
+        f"openai:{OPENAI_IMAGE_MODEL}:{OPENAI_IMAGE_QUALITY}:{OPENAI_IMAGE_SIZE}"
+        if IMAGE_PROVIDER == "openai"
+        else f"gemini:{GEMINI_IMAGE_MODEL}"
+    )
+    cache_key = f"{provider_config}|{prompt}" + (
+        f"|ref:{hashlib.sha256(reference_png).hexdigest()[:16]}" if reference_png else ""
+    )
     cached = cache_get_bytes("images", cache_key)
     if cached:
         return cached
 
-    contents: list = []
-    if reference_png is not None:
-        contents.append(genai_types.Part.from_bytes(data=reference_png, mime_type="image/png"))
-    contents.append(prompt)
+    async def call_openai() -> bytes:
+        if reference_png is None:
+            response = await openai_client.images.generate(
+                model=OPENAI_IMAGE_MODEL,
+                prompt=prompt,
+                size=OPENAI_IMAGE_SIZE,
+                quality=OPENAI_IMAGE_QUALITY,  # type: ignore[arg-type]
+                output_format="png",
+            )
+        else:
+            response = await openai_client.images.edit(
+                model=OPENAI_IMAGE_MODEL,
+                image=("reference.png", reference_png, "image/png"),
+                prompt=prompt,
+                size=OPENAI_IMAGE_SIZE,
+                quality=OPENAI_IMAGE_QUALITY,  # type: ignore[arg-type]
+                output_format="png",
+            )
+        return _extract_openai_image_bytes(response)
 
-    async def call():
+    async def call_gemini() -> bytes:
+        if gemini_client is None:
+            raise RuntimeError("GEMINI_API_KEY is required when IMAGE_PROVIDER=gemini")
+        contents: list = []
+        if reference_png is not None:
+            contents.append(genai_types.Part.from_bytes(data=reference_png, mime_type="image/png"))
+        contents.append(prompt)
         response = await gemini_client.aio.models.generate_content(
-            model=IMAGE_MODEL,
+            model=GEMINI_IMAGE_MODEL,
             contents=contents if reference_png is not None else prompt,
             config=genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"]),
         )
-        return _extract_image_bytes(response)
+        return _extract_gemini_image_bytes(response)
 
-    data = await _with_retry(call)
+    data = await _with_retry(call_openai if IMAGE_PROVIDER == "openai" else call_gemini)
     cache_set_bytes("images", cache_key, data)
     return data
 

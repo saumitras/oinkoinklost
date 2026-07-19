@@ -152,6 +152,7 @@ export interface Game {
     audio: Record<string, string>
     npcOpeners?: Record<string, PreloadedNPCReply>
     npcMamaReplies?: Record<string, PreloadedNPCReply>
+    npcMamaReplyVariants?: Record<string, PreloadedNPCReply>
     reunionPhotoUrl?: string
   }
   annotation?: ScreenAnnotation
