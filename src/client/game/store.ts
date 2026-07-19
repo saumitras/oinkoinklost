@@ -28,6 +28,7 @@ interface GameState {
   setPlayerPos: (pos: { x: number; y: number }) => void
   setPlayerFacing: (f: GameState['playerFacing']) => void
   collectHint: (hintId: string) => void
+  collectAllHints: (hintIds: string[]) => void
   setNearby: (n: Nearby | null) => void
   setSolved: (v: boolean) => void
   setShowPicker: (v: boolean) => void
@@ -60,6 +61,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   setPlayerFacing: (playerFacing) => set({ playerFacing }),
   collectHint: (hintId) => {
     const next = [...get().collectedHintIds, hintId].filter((v, i, a) => a.indexOf(v) === i)
+    const gameId = get().game?.id
+    if (gameId) localStorage.setItem(`hints_${gameId}`, JSON.stringify(next))
+    set({ collectedHintIds: next })
+  },
+  collectAllHints: (hintIds) => {
+    const next = [...new Set(hintIds)]
     const gameId = get().game?.id
     if (gameId) localStorage.setItem(`hints_${gameId}`, JSON.stringify(next))
     set({ collectedHintIds: next })

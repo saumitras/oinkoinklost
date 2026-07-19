@@ -2,7 +2,9 @@ node_modules
 dist
 .venv
 .git
-.env.local
+.env
+.env.*
+!.env.example
 local-assets
 dev-cache
 __pycache__

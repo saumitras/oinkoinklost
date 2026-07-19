@@ -21,103 +21,113 @@ export interface AdventureQuest {
   objects: QuestObject[]
 }
 
-export type CuratedAdventure = 'pumpkin' | 'moon' | 'cloud'
+export type CuratedAdventure = 'pumpkin' | 'moon' | 'cloud' | 'dracula'
 
 const PUMPKIN_QUESTS: AdventureQuest[] = [
   {
-    id: 'cow_hay_fork',
+    id: 'cow_blue_rope',
     npcId: 'cow',
     roomId: 'barn',
-    title: 'The missing hay fork',
-    request: 'Moo! I did see Mama, but first could you help me? Find the blue tool with three prongs. It is perfect for lifting hay.',
-    searchPrompt: 'Look around the barn for the blue tool with three prongs.',
-    success: 'Moo-velous! That is my hay fork. Come talk to me and I will tell you what I noticed about Mama.',
+    title: 'The blue barn rope',
+    request: 'Moo! I did see Mama, but first could you help me? Find the blue rope hanging on the right wall of my barn.',
+    searchPrompt: 'Look around the barn for the blue rope hanging on the right wall.',
+    success: 'Moo-velous! That is my blue rope. Come talk to me and I will tell you what I noticed about Mama.',
     objects: [
-      { id: 'satchel', label: 'Leather satchel', emoji: '🎒', x: 220, y: 445, correct: false, response: 'That is my little tool satchel. Useful—but it has no prongs!' },
-      { id: 'hay_fork', label: 'Blue hay fork', emoji: '✨', x: 515, y: 410, correct: true, response: 'You found the blue hay fork!' },
-      { id: 'shovel', label: 'Blue shovel', emoji: '🧹', x: 580, y: 410, correct: false, response: 'That tool has one wide scoop. Look for three pointy prongs.' },
+      { id: 'hay_bales', label: 'Hay bales', emoji: '🌾', x: 205, y: 520, correct: false, response: 'That is a cozy pile of hay. The rope is blue and hangs on a wall.' },
+      { id: 'blue_rope', label: 'Blue barn rope', emoji: '🪢', x: 875, y: 600, correct: true, response: 'You found the blue rope hanging on the wall!' },
+      { id: 'milk_jug', label: 'Silver milk jug', emoji: '🥛', x: 820, y: 325, correct: false, response: 'That shiny jug holds milk. Look lower for something long and blue.' },
     ],
   },
   {
-    id: 'goat_top_pie',
-    npcId: 'goat',
-    roomId: 'market',
-    title: 'The pie on top',
-    request: 'Baa-hello! I can help with Mama, but my special pie is hiding in plain sight. Find the pie sitting all by itself at the very top.',
-    searchPrompt: 'Find the pie sitting alone at the very top of the bakery shelves.',
-    success: 'Baa-rilliant! That is the special top-shelf pie. Come talk to me for the clue I promised.',
-    objects: [
-      { id: 'top_pie', label: 'Top-shelf pie', emoji: '🥧', x: 300, y: 170, correct: true, response: 'That pie is sitting all alone at the very top!' },
-      { id: 'middle_pies', label: 'Middle-shelf pies', emoji: '🥧', x: 384, y: 292, correct: false, response: 'Those pies have neighbors. The special pie is sitting all alone.' },
-      { id: 'wooden_tubs', label: 'Wooden pie tubs', emoji: '🪵', x: 205, y: 520, correct: false, response: 'Those are wooden tubs. Look higher—much higher!' },
-    ],
-  },
-  {
-    id: 'duck_rolling_apple',
-    npcId: 'duck',
+    id: 'owl_apple_wreath',
+    npcId: 'owl',
     roomId: 'orchard',
-    title: 'The runaway apple',
-    request: 'Quack! Mama hurried past here, but one apple rolled away while I waved. Can you find the apple sitting alone on the floor?',
-    searchPrompt: 'Find the single apple that rolled away from all the baskets and crates.',
-    success: 'Quack-tastic! You rescued the runaway apple. Come back and I will share my Mama clue.',
+    title: 'The apple wreath',
+    request: 'Hoo… I can help with Mama, but first find the round wreath decorated with apples on my wall.',
+    searchPrompt: 'Find the round apple wreath hanging on the orchard shed wall.',
+    success: 'Hoo-ray! That is my apple wreath. Come talk to me for the clue I promised.',
     objects: [
-      { id: 'apple_basket', label: 'Basket of apples', emoji: '🧺', x: 285, y: 420, correct: false, response: 'Those apples are safely together in their basket. One apple rolled away alone.' },
-      { id: 'cider_mugs', label: 'Warm cider mugs', emoji: '☕', x: 455, y: 515, correct: false, response: 'Mmm, warm cider! But we are searching for one runaway apple.' },
-      { id: 'runaway_apple', label: 'Runaway apple', emoji: '🍎', x: 575, y: 640, correct: true, response: 'There is the runaway apple, all by itself!' },
+      { id: 'apple_wreath', label: 'Apple wreath', emoji: '🍎', x: 735, y: 285, correct: true, response: 'That round wreath is decorated with bright red apples!' },
+      { id: 'apple_crates', label: 'Apple crates', emoji: '🧺', x: 255, y: 465, correct: false, response: 'Those apples are packed in crates. The wreath is round and hangs up high.' },
+      { id: 'cider_barrel', label: 'Cider barrel', emoji: '🧃', x: 720, y: 470, correct: false, response: 'That barrel makes warm cider. Look above it on the wall.' },
+    ],
+  },
+  {
+    id: 'duck_chalkboard',
+    npcId: 'duck',
+    roomId: 'pumpkin_stall',
+    title: 'The little chalkboard',
+    request: 'Quack! I can help with Mama, but first find the little black chalkboard hiding behind the pumpkins.',
+    searchPrompt: 'Find the small black chalkboard near the pumpkin counter.',
+    success: 'Quack-tastic! You found my little chalkboard. Come back and I will share my Mama clue.',
+    objects: [
+      { id: 'big_pumpkin', label: 'Big pumpkin', emoji: '🎃', x: 175, y: 470, correct: false, response: 'That is a wonderfully big pumpkin. Look just behind the counter.' },
+      { id: 'chalkboard', label: 'Little chalkboard', emoji: '✨', x: 350, y: 450, correct: true, response: 'You found the little black chalkboard!' },
+      { id: 'flower_wreath', label: 'Flower wreath', emoji: '🌼', x: 730, y: 335, correct: false, response: 'That is a pretty autumn wreath. The chalkboard is black and rectangular.' },
     ],
   },
 ]
 
 const MOON_QUESTS: AdventureQuest[] = [
   {
-    id: 'owl_folded_map',
-    npcId: 'captain_owl',
-    roomId: 'bridge',
-    title: 'The captain’s tiny map',
-    request: 'Hoo-hoo! Before I share what I saw, help me spot my tiny folded map. It has little green and gold patches on it.',
-    searchPrompt: 'Find Captain Hoot’s tiny folded map with green and gold patches.',
-    success: 'Hoo-ray! It was tucked safely on my coat. Come talk to me and I will share my Mama clue.',
+    id: 'owl_glowing_globe',
+    npcId: 'astro_owl',
+    roomId: 'observation_deck',
+    title: 'The glowing globe',
+    request: 'Hoo-hoo! Before I share what I saw, help me find the little glowing globe tucked into the upper-left shelf.',
+    searchPrompt: 'Find Ollie’s little glowing globe on the upper-left shelf.',
+    success: 'Hoo-ray! You found my glowing globe. Come talk to me and I will share my Mama clue.',
     objects: [
-      { id: 'star_screen', label: 'Star-map screen', emoji: '🛰️', x: 350, y: 520, correct: false, response: 'That is a glowing star-map screen. Look for a tiny folded paper map.' },
-      { id: 'folded_map', label: 'Tiny folded map', emoji: '🗺️', x: 365, y: 760, correct: true, response: 'There it is—the tiny green-and-gold folded map!' },
-      { id: 'captain_chair', label: 'Captain chair', emoji: '💺', x: 520, y: 620, correct: false, response: 'That is the swiveling captain chair. The map is much smaller.' },
+      { id: 'glowing_globe', label: 'Glowing globe', emoji: '🌍', x: 105, y: 305, correct: true, response: 'There it is—the little glowing globe!' },
+      { id: 'moon_chart', label: 'Moon chart', emoji: '🌙', x: 900, y: 300, correct: false, response: 'That chart shows many moon phases. Look on the opposite shelf.' },
+      { id: 'cozy_chair', label: 'Cozy pod chair', emoji: '💺', x: 115, y: 520, correct: false, response: 'That is the cozy observation chair. The globe is smaller and higher.' },
     ],
   },
   {
     id: 'rabbit_high_tomato',
     npcId: 'robot_rabbit',
-    roomId: 'greenhouse',
-    title: 'The highest moon tomato',
-    request: 'Boop-boop! My plant scanner needs one special tomato. Can you find the tomato sitting highest on the far-left shelf?',
-    searchPrompt: 'Find the highest tomato on the far-left greenhouse shelf.',
-    success: 'Boop-tastic! That is the high little moon tomato. Come talk to me for your Mama clue.',
+    roomId: 'space_garden',
+    title: 'The highest seed bubble',
+    request: 'Boop-boop! My garden scanner needs the seed bubble floating highest above the plants. Can you find it?',
+    searchPrompt: 'Find the highest floating seed bubble in the space garden.',
+    success: 'Boop-tastic! That is the highest little seed bubble. Come talk to me for your Mama clue.',
     objects: [
-      { id: 'high_tomato', label: 'Highest moon tomato', emoji: '🍅', x: 150, y: 345, correct: true, response: 'Correct! That tomato is highest on the far-left shelf.' },
-      { id: 'left_tomatoes', label: 'Lower tomato cluster', emoji: '🍅', x: 165, y: 585, correct: false, response: 'Those tomatoes are on the left, but they are much lower.' },
-      { id: 'right_tomatoes', label: 'Right tomato cluster', emoji: '🍅', x: 840, y: 570, correct: false, response: 'Those are bright and ripe, but they are on the right side.' },
+      { id: 'highest_seed', label: 'Highest seed bubble', emoji: '🌱', x: 500, y: 245, correct: true, response: 'Correct! That seed bubble is floating highest of all.' },
+      { id: 'lower_seed', label: 'Lower seed bubble', emoji: '🫧', x: 390, y: 390, correct: false, response: 'That bubble has a seed, but another one floats much higher.' },
+      { id: 'plant_tube', label: 'Glowing plant tube', emoji: '🧪', x: 775, y: 340, correct: false, response: 'That tall tube grows plants. Look for a small floating bubble.' },
     ],
   },
   {
-    id: 'cat_blue_jar',
-    npcId: 'chef_cat',
-    roomId: 'cafe',
-    title: 'The little blue jar',
-    request: 'Meow! I can help with Mama, but first find my tiny blue sprinkle jar. It is hiding on the counter near the sticky buns.',
-    searchPrompt: 'Find the tiny blue jar sitting on the café counter near the buns.',
-    success: 'Purr-fect! Those moon sprinkles make every bun sparkle. Come talk to me and I will share the clue I promised.',
+    id: 'cat_paw_badge',
+    npcId: 'cat_captain',
+    roomId: 'cosmic_cafe',
+    title: 'The glowing paw badge',
+    request: 'Meow! I can help with Mama, but first find the glowing round paw badge above the café window.',
+    searchPrompt: 'Find the glowing paw badge high on the cosmic café wall.',
+    success: 'Purr-fect! That is the café’s glowing paw badge. Come talk to me and I will share the clue I promised.',
     objects: [
-      { id: 'blue_bottles', label: 'Tall blue bottles', emoji: '🧴', x: 80, y: 480, correct: false, response: 'Those bottles are blue, but they are tall. Find one tiny jar.' },
-      { id: 'sprinkle_jar', label: 'Tiny blue sprinkle jar', emoji: '🫙', x: 415, y: 435, correct: true, response: 'You found the tiny blue sprinkle jar beside the buns!' },
-      { id: 'mira_bun', label: 'Sticky bun', emoji: '🍩', x: 710, y: 480, correct: false, response: 'That bun looks delicious, but we still need the tiny blue jar.' },
+      { id: 'star_badge', label: 'Glowing star badge', emoji: '⭐', x: 385, y: 205, correct: false, response: 'That is the star badge. Look beside it for a round badge with a paw.' },
+      { id: 'paw_badge', label: 'Glowing paw badge', emoji: '🐾', x: 515, y: 205, correct: true, response: 'You found the glowing paw badge above the window!' },
+      { id: 'moon_window', label: 'Moon window', emoji: '🌙', x: 510, y: 390, correct: false, response: 'That is the big moon window. The badge is much smaller and higher.' },
     ],
   },
 ]
 
 export function curatedAdventure(game: Game): CuratedAdventure | null {
-  const name = game.bible?.setting.name.toLowerCase() ?? ''
-  if (name.includes('pumpkin')) return 'pumpkin'
-  if (name.includes('moon station')) return 'moon'
-  if (name.includes('cloud toy shop')) return 'cloud'
+  const sourceId = game.librarySourceId ?? game.id
+  if (sourceId === 'CaJ7U4wCJuaR8TmHmyvOp') return 'pumpkin'
+  if (sourceId === 'tISvEVUXR6nUIuWUNhqbY') return 'moon'
+  if (sourceId === 'cjfwNIfLt411ZZKDOC0Qo') return 'cloud'
+  if (sourceId === '3v62ihEvJ-q8DM_Mda_l3') return 'dracula'
+
+  const identity = [game.idea, game.bible?.title, game.bible?.setting.name]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+  if (identity.includes('pumpkin') && identity.includes('farm')) return 'pumpkin'
+  if (identity.includes('moon') && identity.includes('station')) return 'moon'
+  if (identity.includes('cloud toy shop')) return 'cloud'
+  if (identity.includes('dracula') && identity.includes('castle')) return 'dracula'
   return null
 }
 

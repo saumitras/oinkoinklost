@@ -14,6 +14,7 @@ TTS_MODEL = os.getenv("TTS_MODEL", "gpt-4o-mini-tts")
 TRANSCRIBE_MODEL = os.getenv("TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe")
 MODERATION_MODEL = os.getenv("MODERATION_MODEL", "omni-moderation-latest")
 ASSETS_DIR = Path(os.getenv("ASSETS_DIR", "./local-assets"))
+STATIC_DIR = Path(os.getenv("STATIC_DIR", "./dist"))
 PORT = int(os.getenv("PORT", "8000"))
 
 # Dev mode: cache all AI generations to disk, skip API calls on cache hit

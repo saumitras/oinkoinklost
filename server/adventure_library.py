@@ -9,11 +9,7 @@ from server.schema import Game
 
 
 GAME_ID_RE = re.compile(r"^[A-Za-z0-9_-]{5,80}$")
-HIDDEN_LIBRARY_IDS = {
-    # These were intentionally removed from the curated library.
-    "B9888D_mmeb8VQ1H84jVq",
-    "DS1Wm9QZ2cHIblaVfvLDx",
-}
+HIDDEN_LIBRARY_IDS: set[str] = set()
 
 
 def valid_game_id(game_id: str) -> bool:

@@ -33,7 +33,8 @@ THEME_STYLE_BASE = (
 
 NPC_VOICES = ["alloy", "echo", "fable"]
 NARRATOR_VOICE = "nova"
-PIGLET_VOICE = "shimmer"
+PIGLET_VOICE = "nova"
+PIGLET_TTS_SPEED = 1.22
 
 DEFAULT_TTS_INSTRUCTIONS = (
     "Speak warmly and clearly at a relaxed conversational pace. "
@@ -41,11 +42,10 @@ DEFAULT_TTS_INSTRUCTIONS = (
 )
 
 PIGLET_TTS_INSTRUCTIONS = (
-    "Perform as Piglet, a very young storybook pig with the voice and energy of a cheerful kindergarten-age child. "
-    "Use a small, bright, slightly higher-pitched voice, a soft rounded tone, bouncy curious intonation, and an audible smile. "
-    "Sound sweet, innocent, eager, and a tiny bit shy-brave, as if asking a trusted animal friend for help. "
-    "Keep each line playful, intimate, and easy to understand. Do not sound like an adult, narrator, teacher, or announcer, "
-    "and do not add words that are not in the script."
+    "Perform as a very small, cheerful baby piglet looking for Mama. The voice should be tiny, cute, light, and "
+    "unmistakably that of a baby, with playful energy and sincere curiosity. Use a tiny, soft baby voice with simple "
+    "innocent emotion, gentle hope, and a small upward lift on mama. Speak at a quick conversational pace. Avoid an "
+    "adult tone, slow narration, forced drama, or a deep voice."
 )
 
 PUMPKIN_NPC_VOICE_PROFILES: dict[str, tuple[str, str]] = {
@@ -55,11 +55,11 @@ PUMPKIN_NPC_VOICE_PROFILES: dict[str, tuple[str, str]] = {
         "Use a warm low register, relaxed conversational pacing, gentle humor, and an audible smile. "
         "Let thoughtful commas and ellipses breathe. Do not sound like a narrator, teacher, cartoon announcer, or baby-talk performer.",
     ),
-    "goat": (
+    "owl": (
         "marin",
-        "Speak as Tilly, a playful young farm goat who is genuinely pleased to see Piglet. "
-        "Use lively but believable conversational rhythm, light curiosity, and small changes in pace. "
-        "Keep the delivery intimate rather than theatrical. Do not use baby talk or an exaggerated cartoon voice.",
+        "Speak as Ollie, a thoughtful orchard owl who is genuinely pleased to see Piglet. "
+        "Use a warm, curious conversational rhythm, gentle wisdom, and small natural pauses. "
+        "Let Hoo feel soft and friendly. Keep the delivery intimate rather than theatrical or babyish.",
     ),
     "duck": (
         "coral",
@@ -70,9 +70,9 @@ PUMPKIN_NPC_VOICE_PROFILES: dict[str, tuple[str, str]] = {
 }
 
 MOON_NPC_VOICE_PROFILES: dict[str, tuple[str, str]] = {
-    "captain_owl": (
+    "astro_owl": (
         "cedar",
-        "Speak as Captain Hoot, a calm, wise space-station owl welcoming one small explorer. "
+        "Speak as Ollie, a calm, wise astronaut owl welcoming one small explorer. "
         "Use a warm low register, unhurried natural phrasing, dry gentle humor, and a reassuring smile. "
         "Give each Hoo a soft owl-like lift without turning it into a cartoon catchphrase. Do not sound like a narrator or announcer.",
     ),
@@ -82,9 +82,9 @@ MOON_NPC_VOICE_PROFILES: dict[str, tuple[str, str]] = {
         "Use bright natural energy, precise but playful rhythm, and tiny cheerful lifts on Boop. "
         "Sound warm and companionable rather than mechanical, theatrical, or sing-song.",
     ),
-    "chef_cat": (
+    "cat_captain": (
         "coral",
-        "Speak as Mira, a cozy, quick-witted space-cafe cat chatting with a small friend. "
+        "Speak as Captain Mew, a cozy, quick-witted space-cafe cat chatting with a small friend. "
         "Use warm conversational phrasing, lively curiosity, a gentle purr in the tone, and an audible smile. "
         "Let Meow feel playful, then settle into believable speech. Avoid forced excitement, narration, and baby talk.",
     ),
@@ -112,21 +112,51 @@ CLOUD_NPC_VOICE_PROFILES: dict[str, tuple[str, str]] = {
     ),
 }
 
+DRACULA_NPC_VOICE_PROFILES: dict[str, tuple[str, str]] = {
+    "n1": (
+        "cedar",
+        "Speak as Count Morrow, a friendly little castle bat with grand theatrical manners. "
+        "Use a warm, resonant voice, musical phrasing, gentle mischief, and an audible smile. "
+        "Let Eek feel like a quick happy bat greeting, then return to believable conversation. "
+        "Sound welcoming rather than frightening; avoid melodrama, narration, and baby talk.",
+    ),
+    "n2": (
+        "marin",
+        "Speak as Lady Webber, a clever, kind castle spider who loves stage props. "
+        "Use a soft precise voice, careful conversational pacing, dry playful humor, and tiny thoughtful pauses. "
+        "Make Tap-tap subtle and friendly. Do not sound sinister, mechanical, theatrical, or babyish.",
+    ),
+    "n3": (
+        "coral",
+        "Speak as Sir Snuffle, a big-hearted castle wolf who loves music. "
+        "Use a cozy, lively voice with confident but gentle energy, natural phrasing, and a reassuring smile. "
+        "Let Awoo sound musical and playful, never threatening. Avoid narration, forced excitement, and baby talk.",
+    ),
+}
+
 
 def npc_voice(index: int) -> str:
     return NPC_VOICES[index % len(NPC_VOICES)]
 
 
 def is_pumpkin_bible(bible: GameBible | None) -> bool:
-    return bool(bible and {npc.id for npc in bible.npcs} == {"cow", "goat", "duck"})
+    return bool(bible and {npc.id for npc in bible.npcs} == {"cow", "owl", "duck"})
 
 
 def is_moon_bible(bible: GameBible | None) -> bool:
-    return bool(bible and {npc.id for npc in bible.npcs} == {"captain_owl", "robot_rabbit", "chef_cat"})
+    return bool(bible and {npc.id for npc in bible.npcs} == {"astro_owl", "robot_rabbit", "cat_captain"})
 
 
 def is_cloud_bible(bible: GameBible | None) -> bool:
     return bool(bible and {npc.id for npc in bible.npcs} == {"npc-parrot", "npc-bunny", "npc-bear"})
+
+
+def is_dracula_bible(bible: GameBible | None) -> bool:
+    return bool(
+        bible
+        and "dracula castle" in bible.setting.name.casefold()
+        and {npc.name for npc in bible.npcs} == {"Count Morrow", "Lady Webber", "Sir Snuffle"}
+    )
 
 
 def npc_tts_profile(npc: NPC, bible: GameBible | None = None) -> tuple[str, str]:
@@ -136,6 +166,8 @@ def npc_tts_profile(npc: NPC, bible: GameBible | None = None) -> tuple[str, str]
         return MOON_NPC_VOICE_PROFILES[npc.id]
     if is_cloud_bible(bible) and npc.id in CLOUD_NPC_VOICE_PROFILES:
         return CLOUD_NPC_VOICE_PROFILES[npc.id]
+    if is_dracula_bible(bible) and npc.id in DRACULA_NPC_VOICE_PROFILES:
+        return DRACULA_NPC_VOICE_PROFILES[npc.id]
     return npc.ttsVoice or "alloy", DEFAULT_TTS_INSTRUCTIONS
 
 
@@ -704,8 +736,17 @@ Both pigs smiling, warm golden light. Cozy and sweet. No text."""
 
 # ── TTS ───────────────────────────────────────────────────────────────────────
 
-async def generate_tts(text: str, voice: str, instructions: str = DEFAULT_TTS_INSTRUCTIONS) -> bytes:
-    cache_key = f"{voice}:{instructions}:{text}"
+async def generate_tts(
+    text: str,
+    voice: str,
+    instructions: str = DEFAULT_TTS_INSTRUCTIONS,
+    speed: float = 1.0,
+) -> bytes:
+    cache_key = (
+        f"{voice}:{instructions}:{text}"
+        if speed == 1.0
+        else f"{voice}:{speed}:{instructions}:{text}"
+    )
     cached = cache_get_bytes("tts", cache_key)
     if cached:
         return cached
@@ -717,6 +758,7 @@ async def generate_tts(text: str, voice: str, instructions: str = DEFAULT_TTS_IN
             input=text,
             instructions=instructions,
             response_format="mp3",
+            speed=speed,
         )
 
     response = await _with_retry(call)

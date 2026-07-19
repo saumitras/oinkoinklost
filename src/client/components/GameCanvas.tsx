@@ -311,6 +311,28 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
     showToast('💛 Correct! Follow the glowing MAMA marker!', 5200)
   }
 
+  function skipClueHunt() {
+    const s = useGameStore.getState()
+    const current = s.game ?? game
+    if (!current.bible || s.solved || s.showReunion) return
+
+    window.clearTimeout(pickerTimer.current)
+    pendingPickerAfterDialogue.current = false
+    stopAudio()
+    setDialogue(null)
+    setQuestBrief(null)
+    setRoomQuestObjects(null)
+    s.collectAllHints(current.bible.hints.map(hint => hint.id))
+    s.setShowPicker(false)
+    s.setSolved(true)
+    s.setScreen('street')
+    loadStreetScene(current)
+    playChime()
+    const message = 'All three clues are collected! Follow the glowing MAMA marker.'
+    showToast(`💛 ${message}`, 6500)
+    speakText(message)
+  }
+
   const currentGame = store.game ?? game
 
   // Dev-time hub regeneration keeps the same game alive. Reload the Pixi
@@ -501,6 +523,18 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
 
       {toast && <div className="game-toast" style={styles.toast}>{toast}</div>}
 
+      {!showIntro && !store.solved && !store.showPicker && !store.showReunion && !dialogue && !questBrief && (
+        <button
+          className="game-skip-button"
+          style={styles.skipBtn}
+          onClick={skipClueHunt}
+          aria-label="I'm too tired to find clues. Find Mama for me"
+          title="Collect every clue and reveal Mama's location"
+        >
+          💤 Too tired? Find Mama for me
+        </button>
+      )}
+
       {store.solved && !store.showReunion && !store.showPicker && (
         <div className="game-mama-mission" style={styles.mamaMission}>💛 Follow the glowing MAMA marker and choose Find Mama!</div>
       )}
@@ -561,13 +595,15 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
   )
 }
 
-function WorldEffects({ theme }: { theme: 'pumpkin' | 'moon' | 'cloud' }) {
+function WorldEffects({ theme }: { theme: 'pumpkin' | 'moon' | 'cloud' | 'dracula' }) {
   return (
     <div className={`world-effects world-effects-${theme}`} aria-hidden="true">
       {Array.from({ length: 14 }, (_, index) => (
         <span className={theme === 'pumpkin'
           ? (index % 3 === 0 ? 'world-leaf' : 'world-speck')
-          : (index % 3 === 0 ? 'world-star' : 'world-orb')} key={index} style={{
+          : theme === 'dracula'
+            ? (index % 3 === 0 ? 'world-bat' : 'world-candle-spark')
+            : (index % 3 === 0 ? 'world-star' : 'world-orb')} key={index} style={{
           left: `${(index * 29) % 96}%`,
           animationDelay: `${-index * 0.63}s`,
           animationDuration: `${6 + (index % 5)}s`,
@@ -706,6 +742,14 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '11px 18px', borderRadius: 99, background: 'rgba(255,244,177,0.94)',
     border: '3px solid #f2b92f', color: '#614109', fontSize: 14, fontWeight: 950,
     boxShadow: '0 6px 22px rgba(96,62,0,0.3)', whiteSpace: 'nowrap',
+  },
+  skipBtn: {
+    position: 'absolute', zIndex: 27, top: 18, left: '50%', transform: 'translateX(-50%)',
+    padding: '10px 16px', borderRadius: 99,
+    background: 'rgba(61,50,82,0.84)', color: '#fff8df',
+    border: '2px solid rgba(255,255,255,0.78)', fontSize: 13, fontWeight: 850,
+    cursor: 'pointer', boxShadow: '0 5px 18px rgba(21,14,35,0.3)',
+    backdropFilter: 'blur(9px)', whiteSpace: 'nowrap',
   },
   pickerBtn: {
     position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)',

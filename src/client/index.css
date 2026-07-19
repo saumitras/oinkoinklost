@@ -48,6 +48,9 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 }
 .world-effects .world-star::before { content: '✦'; }
 .world-effects .world-orb::before { content: '·'; }
+.world-effects-dracula span { color: rgba(255, 210, 108, .82); filter: drop-shadow(0 0 7px rgba(255, 177, 62, .8)); }
+.world-effects .world-bat::before { content: '🦇'; font-size: 1.1rem; }
+.world-effects .world-candle-spark::before { content: '✦'; }
 .adventure-card:hover { transform: translateY(-4px); box-shadow: 0 14px 32px rgba(64,37,24,0.3) !important; }
 .adventure-card:hover img { transform: scale(1.04); }
 
@@ -128,6 +131,13 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
     max-width: calc(100vw - 24px);
     white-space: normal !important;
     text-align: center;
+    font-size: 12px !important;
+  }
+  .game-skip-button {
+    top: auto !important;
+    bottom: calc(max(18px, env(safe-area-inset-bottom)) + 72px) !important;
+    max-width: calc(100vw - 24px);
+    padding: 10px 14px !important;
     font-size: 12px !important;
   }
 

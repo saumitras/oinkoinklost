@@ -1,0 +1,748 @@
+{
+  "id": "3v62ihEvJ-q8DM_Mda_l3",
+  "idea": "inside a grand Dracula castle with friendly theatrical monsters, a vast moonlit Gothic great hall, crimson velvet, carved stone arches, glowing candles, stained-glass windows, three distinct interior sub-room doors, and clear open stone floors; spooky and mysterious, never gory, and entirely inside the castle",
+  "createdAt": "2026-07-19T14:56:55.486834+00:00",
+  "status": "playable",
+  "stages": {
+    "bible": "done",
+    "street": "done",
+    "outline": "done",
+    "hotspots": "done",
+    "character": "done",
+    "npc_openers": "done",
+    "tts": "done",
+    "room_b1": "done",
+    "room_b2": "done",
+    "room_b3": "done"
+  },
+  "bible": {
+    "title": "Oink Oink Lost: The Moonlit Great Hall",
+    "setting": {
+      "name": "Dracula Castle Great Hall",
+      "description": "A vast, entirely indoor Gothic castle hall with moonlight, candles, velvet, stone arches, and friendly theatrical monster neighbors.",
+      "decorations": [
+        "crimson velvet banners",
+        "carved stone arches",
+        "glowing candles",
+        "stained-glass windows",
+        "moonbeams on stone floor",
+        "big candelabra",
+        "echoing footsteps",
+        "three interior sub-room doors"
+      ]
+    },
+    "player": {
+      "description": "A tiny pink piglet with round cheeks and a curious snout, wearing a little golden bow",
+      "accessory": "golden bow"
+    },
+    "narratorIntro": "Piglet woke up in a grand castle hall. It was spooky-looking, but everyone here was kind. Now Piglet must find Mama Pig by asking three friendly neighbors for clues.",
+    "buildings": [
+      {
+        "id": "b1",
+        "name": "Candle Door",
+        "exteriorDescription": "A tall oak door under a brass candle sconce, set into the east wall.",
+        "sizeHint": "small",
+        "isEnterable": true,
+        "interiorDescription": "A cozy side room filled with candles, costume hooks, and soft red curtains.",
+        "npcId": "n1"
+      },
+      {
+        "id": "b2",
+        "name": "Velvet Arch Door",
+        "exteriorDescription": "A wide archway draped in crimson velvet near the north side of the hall.",
+        "sizeHint": "medium",
+        "isEnterable": true,
+        "interiorDescription": "A little rehearsal room with masks, hats, and a painted backdrop.",
+        "npcId": "n2"
+      },
+      {
+        "id": "b3",
+        "name": "Stained-Glass Door",
+        "exteriorDescription": "A narrow pointed door beneath a glowing stained-glass window on the west wall.",
+        "sizeHint": "small",
+        "isEnterable": true,
+        "interiorDescription": "A quiet music nook with a piano, songbooks, and a soft rug.",
+        "npcId": "n3"
+      },
+      {
+        "id": "b4",
+        "name": "Creaky Coat Stand",
+        "exteriorDescription": "A lonely coat stand beside a candlelit pillar.",
+        "sizeHint": "small",
+        "isEnterable": false,
+        "interiorDescription": null,
+        "npcId": null
+      },
+      {
+        "id": "b5",
+        "name": "Moonlit Niche",
+        "exteriorDescription": "A small stone niche where moonlight pools on the floor.",
+        "sizeHint": "small",
+        "isEnterable": false,
+        "interiorDescription": null,
+        "npcId": null
+      },
+      {
+        "id": "b6",
+        "name": "Grand Stair Banister",
+        "exteriorDescription": "A sweeping stone stair banister curling up to the gallery.",
+        "sizeHint": "large",
+        "isEnterable": false,
+        "interiorDescription": null,
+        "npcId": null
+      }
+    ],
+    "npcs": [
+      {
+        "id": "n1",
+        "name": "Count Morrow",
+        "species": "bat",
+        "appearance": "A tiny bat in a velvet cape with a shiny button nose and a very polite bow tie.",
+        "personality": "dramatic, gentle, and helpful",
+        "roomPosition": "left",
+        "ttsVoice": "alloy",
+        "lines": {
+          "greeting": "Good evening, little piglet. I am here to help.",
+          "hint": "I am sure Mama did not stop at Candle Door.",
+          "idle": "Bats love a grand echo."
+        },
+        "conversation": {
+          "speechStyle": "grand and musical",
+          "favoriteTopic": "theater curtains",
+          "smallTalkFacts": [
+            "This castle loves moonlight on stone.",
+            "Candles make the hall feel warm.",
+            "Costumes are kept neat and tidy."
+          ],
+          "openingChoices": [
+            "Where did Mama go?",
+            "Do you live here?",
+            "Tell me about the hall."
+          ],
+          "clueLeadIn": "Mama went somewhere...",
+          "animalSound": "Eek"
+        }
+      },
+      {
+        "id": "n2",
+        "name": "Lady Webber",
+        "species": "spider",
+        "appearance": "A tidy spider with a sparkly shawl and eight neat feet.",
+        "personality": "smart, patient, and a little silly",
+        "roomPosition": "center",
+        "ttsVoice": "echo",
+        "lines": {
+          "greeting": "Hello, dear Piglet. Let\u2019s find your mama.",
+          "hint": "I am sure Mama did not stop at Velvet Arch Door.",
+          "idle": "My web is for thinking, not for trapping."
+        },
+        "conversation": {
+          "speechStyle": "careful and chatty",
+          "favoriteTopic": "stage props",
+          "smallTalkFacts": [
+            "Velvet curtains are soft and red.",
+            "Masks are hung in a row.",
+            "The hall has three little side doors."
+          ],
+          "openingChoices": [
+            "Did you see Mama?",
+            "What is this room?",
+            "Can I ask a clue?"
+          ],
+          "clueLeadIn": "Mama went somewhere...",
+          "animalSound": "Tap-tap"
+        }
+      },
+      {
+        "id": "n3",
+        "name": "Sir Snuffle",
+        "species": "wolf",
+        "appearance": "A fluffy gray wolf in a gold vest with a feathered hat and a smile.",
+        "personality": "boisterous, kind, and very helpful",
+        "roomPosition": "right",
+        "ttsVoice": "fable",
+        "lines": {
+          "greeting": "Ahoy, little pig! Welcome to the castle hall.",
+          "hint": "I am sure Mama did not stop at Creaky Coat Stand.",
+          "idle": "I love a good echo and a good snack."
+        },
+        "conversation": {
+          "speechStyle": "big and friendly",
+          "favoriteTopic": "music",
+          "smallTalkFacts": [
+            "The piano nook is quiet and cozy.",
+            "Stained glass turns moonlight blue.",
+            "Stone floors make tap-tap sounds."
+          ],
+          "openingChoices": [
+            "Any clue for me?",
+            "What do you like?",
+            "Where should I look?"
+          ],
+          "clueLeadIn": "Mama went somewhere...",
+          "animalSound": "Awoo"
+        }
+      }
+    ],
+    "hints": [
+      {
+        "id": "h1",
+        "npcId": "n1",
+        "kind": "attribute",
+        "text": "I am sure Mama did not stop at Candle Door.",
+        "eliminatesLocationIds": [
+          "b1"
+        ]
+      },
+      {
+        "id": "h2",
+        "npcId": "n2",
+        "kind": "direction",
+        "text": "I am sure Mama did not stop at Velvet Arch Door.",
+        "eliminatesLocationIds": [
+          "b2"
+        ]
+      },
+      {
+        "id": "h3",
+        "npcId": "n3",
+        "kind": "object",
+        "text": "I am sure Mama did not stop at Creaky Coat Stand.",
+        "eliminatesLocationIds": [
+          "b4"
+        ]
+      }
+    ],
+    "candidateLocations": [
+      {
+        "id": "b1",
+        "name": "Candle Door",
+        "emoji": "\ud83d\udd6f\ufe0f",
+        "description": "A candle-lit side room entrance with red curtains and a soft little glow.",
+        "clueFacts": {
+          "attribute": "that smells like old dust",
+          "direction": "beside the east wall",
+          "object": "with a costume hook rack"
+        }
+      },
+      {
+        "id": "b2",
+        "name": "Velvet Arch Door",
+        "emoji": "\ud83c\udfad",
+        "description": "A dramatic crimson doorway that leads into a rehearsal room.",
+        "clueFacts": {
+          "attribute": "that smells like warm apples",
+          "direction": "near the north side",
+          "object": "with a shiny piano"
+        }
+      },
+      {
+        "id": "b3",
+        "name": "Stained-Glass Door",
+        "emoji": "\ud83c\udfb9",
+        "description": "A quiet music door beneath colored windows, all soft and moonlit.",
+        "clueFacts": {
+          "attribute": "that smells like warm apples",
+          "direction": "beside the west wall",
+          "object": "with a shiny piano and songbooks"
+        }
+      },
+      {
+        "id": "b4",
+        "name": "Creaky Coat Stand",
+        "emoji": "\ud83e\udde5",
+        "description": "A little nook by a pillar where coats and capes are hung.",
+        "clueFacts": {
+          "attribute": "that smells like old dust",
+          "direction": "near the south pillar",
+          "object": "with a costume hook rack"
+        }
+      }
+    ],
+    "finalLocationId": "b3",
+    "finalLocationBuildingId": "b3",
+    "reunionLine": "Mama Pig was here all along, humming by the piano! Piglet snuggled into Mama\u2019s side at once.",
+    "verification": "Each clue rules out one wrong place; only Stained-Glass Door remains.",
+    "visualDirection": {
+      "layout": "interior_hub",
+      "architecture": "A vast Gothic great hall inside Dracula\u2019s castle, with a central open stone floor and three distinct interior sub-room doors set into carved arches around the hall.",
+      "palette": [
+        "crimson velvet",
+        "midnight blue",
+        "soft gold candlelight",
+        "cool stone gray",
+        "stained-glass jewel tones"
+      ],
+      "lighting": "Moonbeams from stained-glass windows mix with warm candle clusters and a soft glow on the stone floor.",
+      "atmosphere": "Spooky-looking but cozy, theatrical, and friendly, with a grand mystery feel and no danger.",
+      "walkableSurface": "Wide open worn stone flags with clear paths between the doors and the center hall.",
+      "imageStyle": "Whimsical storybook illustration with Gothic details, rich textures, and child-friendly monster characters.",
+      "avoid": [
+        "gore",
+        "injury",
+        "realistic horror",
+        "threatening monsters",
+        "dark blood-red splashes",
+        "messy clutter",
+        "outdoor scenery",
+        "sunny village visuals"
+      ]
+    }
+  },
+  "assets": {
+    "streetUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/street.png",
+    "outlineUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/outline.png",
+    "characterFrontUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/char_front.png",
+    "characterSideUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/char_side.png",
+    "rooms": {
+      "b1": {
+        "imageUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/room_b1.png",
+        "annotation": {
+          "npcBox": {
+            "x": 90.0,
+            "y": 498.0,
+            "w": 206.0,
+            "h": 289.0
+          },
+          "exit": {
+            "x": 511.0,
+            "y": 1012.0
+          }
+        }
+      },
+      "b2": {
+        "imageUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/room_b2.png",
+        "annotation": {
+          "npcBox": {
+            "x": 378.0,
+            "y": 621.0,
+            "w": 311.0,
+            "h": 196.0
+          },
+          "exit": {
+            "x": 509.0,
+            "y": 1000.0
+          }
+        }
+      },
+      "b3": {
+        "imageUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/room_b3.png",
+        "annotation": {
+          "npcBox": {
+            "x": 649.0,
+            "y": 443.0,
+            "w": 176.0,
+            "h": 371.0
+          },
+          "exit": {
+            "x": 509.0,
+            "y": 1008.0
+          }
+        }
+      }
+    },
+    "audio": {
+      "npc_n1.hint": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/hint_n1_a3b50854d7174aca.mp3",
+      "npc_n3.hint": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/hint_n3_f5a7470ce8ffdb0b.mp3",
+      "npc_n2.hint": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/hint_n2_384d8fb44c333a1a.mp3",
+      "narrator.allHints": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/narrator.allHints.mp3",
+      "npc_n1.idle": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/idle_n1_4e9d01fa7a7e88f9.mp3",
+      "npc_n3.idle": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/idle_n3_1492774f6671e041.mp3",
+      "npc_n2.idle": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/idle_n2_799f102c1db3e88f.mp3",
+      "building_b6.look": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/building_b6.look.mp3",
+      "building_b5.look": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/building_b5.look.mp3",
+      "building_b4.look": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/building_b4.look.mp3",
+      "narrator.reunion": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/narrator.reunion.mp3",
+      "narrator.intro": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/narrator.intro.mp3",
+      "npc_n1.greeting": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/opener_n1_06d3ec70a0fac64b.mp3",
+      "npc_n2.greeting": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/opener_n2_11deb95e873d53cc.mp3",
+      "npc_n3.greeting": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/opener_n3_156856c164345b25.mp3"
+    },
+    "npcOpeners": {
+      "n1": {
+        "reply": "Eek! Good evening, little piglet. I am here to help.",
+        "suggestedReplies": [
+          {
+            "text": "Have you seen my Mama?",
+            "intent": "ask_mama"
+          },
+          {
+            "text": "Do you live here?",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Tell me about the hall.",
+            "intent": "small_talk"
+          }
+        ],
+        "mood": "cheerful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/opener_n1_06d3ec70a0fac64b.mp3"
+      },
+      "n3": {
+        "reply": "Awoo! Ahoy, little pig! Welcome to the castle hall.",
+        "suggestedReplies": [
+          {
+            "text": "Have you seen my Mama?",
+            "intent": "ask_mama"
+          },
+          {
+            "text": "What do you like?",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Where should I look?",
+            "intent": "small_talk"
+          }
+        ],
+        "mood": "cheerful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/opener_n3_156856c164345b25.mp3"
+      },
+      "n2": {
+        "reply": "Tap-tap-hello, dear Piglet. Let\u2019s find your mama.",
+        "suggestedReplies": [
+          {
+            "text": "Have you seen my Mama?",
+            "intent": "ask_mama"
+          },
+          {
+            "text": "What is this room?",
+            "intent": "small_talk"
+          }
+        ],
+        "mood": "cheerful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/opener_n2_11deb95e873d53cc.mp3"
+      }
+    },
+    "npcMamaReplies": {
+      "n1": {
+        "reply": "Mama went somewhere... Eek! Mama didn't stop at Candle Door. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about theater curtains.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b1_n1_98ed7a2000153713.mp3"
+      },
+      "n3": {
+        "reply": "Mama went somewhere... Awoo! Mama didn't stop at Creaky Coat Stand. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about music.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b4_n3_fe00ea509c14239f.mp3"
+      },
+      "n2": {
+        "reply": "Mama went somewhere... Tap-tap\u2026 Mama didn't stop at Velvet Arch Door. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about stage props.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b2_n2_3ca0f45c17f2e872.mp3"
+      }
+    },
+    "npcMamaReplyVariants": {
+      "n1:b1": {
+        "reply": "Mama went somewhere... Eek! Mama didn't stop at Candle Door. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about theater curtains.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b1_n1_98ed7a2000153713.mp3"
+      },
+      "n1:b2": {
+        "reply": "Mama went somewhere... Eek! Mama didn't stop at Velvet Arch Door. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about theater curtains.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b2_n1_a19bd8144c421597.mp3"
+      },
+      "n1:b3": {
+        "reply": "Mama went somewhere... Eek! Mama didn't stop at Stained-Glass Door. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about theater curtains.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b3_n1_1222f0ddfedb70de.mp3"
+      },
+      "n1:b4": {
+        "reply": "Mama went somewhere... Eek! Mama didn't stop at Creaky Coat Stand. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about theater curtains.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b4_n1_79f58237ea140a60.mp3"
+      },
+      "n2:b1": {
+        "reply": "Mama went somewhere... Tap-tap\u2026 Mama didn't stop at Candle Door. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about stage props.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b1_n2_ba60cb90543785bc.mp3"
+      },
+      "n2:b2": {
+        "reply": "Mama went somewhere... Tap-tap\u2026 Mama didn't stop at Velvet Arch Door. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about stage props.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b2_n2_3ca0f45c17f2e872.mp3"
+      },
+      "n2:b3": {
+        "reply": "Mama went somewhere... Tap-tap\u2026 Mama didn't stop at Stained-Glass Door. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about stage props.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b3_n2_4fa2114f866f5bd4.mp3"
+      },
+      "n2:b4": {
+        "reply": "Mama went somewhere... Tap-tap\u2026 Mama didn't stop at Creaky Coat Stand. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about stage props.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b4_n2_f3b460d568bdc6c1.mp3"
+      },
+      "n3:b1": {
+        "reply": "Mama went somewhere... Awoo! Mama didn't stop at Candle Door. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about music.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b1_n3_464aeddc9de3e4cf.mp3"
+      },
+      "n3:b2": {
+        "reply": "Mama went somewhere... Awoo! Mama didn't stop at Velvet Arch Door. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about music.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b2_n3_532db2a07ab801b9.mp3"
+      },
+      "n3:b3": {
+        "reply": "Mama went somewhere... Awoo! Mama didn't stop at Stained-Glass Door. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about music.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b3_n3_004c572a0ae78b07.mp3"
+      },
+      "n3:b4": {
+        "reply": "Mama went somewhere... Awoo! Mama didn't stop at Creaky Coat Stand. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about music.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/audio/mama_b4_n3_fe00ea509c14239f.mp3"
+      }
+    },
+    "reunionPhotoUrl": "/assets/games/3v62ihEvJ-q8DM_Mda_l3/reunion.png"
+  },
+  "annotation": {
+    "grid": [
+      "0000000000000000",
+      "0000000100000000",
+      "0000000100000000",
+      "0000000110000000",
+      "0000000110100000",
+      "0000011111101000",
+      "0001111111111000",
+      "0001111111111100",
+      "0001111111111100",
+      "1111111111111110",
+      "0111111111100000",
+      "0111111111000000",
+      "0111111111000000",
+      "0011111111000000",
+      "0000111111000000",
+      "0001111111000000"
+    ],
+    "doors": [
+      {
+        "buildingId": "b1",
+        "x": 819.0,
+        "y": 365.0,
+        "cell": {
+          "col": 12,
+          "row": 5
+        }
+      },
+      {
+        "buildingId": "b2",
+        "x": 503.0,
+        "y": 116.0,
+        "cell": {
+          "col": 7,
+          "row": 1
+        }
+      },
+      {
+        "buildingId": "b3",
+        "x": 193.0,
+        "y": 394.0,
+        "cell": {
+          "col": 3,
+          "row": 6
+        }
+      },
+      {
+        "buildingId": "b4",
+        "x": 701.0,
+        "y": 305.0,
+        "cell": {
+          "col": 10,
+          "row": 4
+        }
+      },
+      {
+        "buildingId": "b5",
+        "x": 854.0,
+        "y": 536.0,
+        "cell": {
+          "col": 13,
+          "row": 8
+        }
+      },
+      {
+        "buildingId": "b6",
+        "x": 193.0,
+        "y": 972.0,
+        "cell": {
+          "col": 3,
+          "row": 15
+        }
+      }
+    ],
+    "spawn": {
+      "col": 8,
+      "row": 9
+    }
+  },
+  "fromWarmPool": false,
+  "cozyVisuals": false,
+  "librarySourceId": null
+}

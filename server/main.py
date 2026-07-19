@@ -14,14 +14,14 @@ from fastapi.responses import StreamingResponse
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from server.config import ASSETS_DIR, PORT
+from server.config import ASSETS_DIR, PORT, STATIC_DIR
 from server.pipeline import run_pipeline, pick_random_idea, spawn_task
 from server.gamestore import get_or_load_game, set_game, snapshot_game
 from server.events import subscribe, unsubscribe, emit
 from server.ai import (
     build_npc_opener, build_npc_mama_reply, moderate_idea, generate_reunion_photo,
     generate_npc_reply, generate_tts, npc_tts_profile, transcribe_audio,
-    PIGLET_TTS_INSTRUCTIONS, PIGLET_VOICE,
+    PIGLET_TTS_INSTRUCTIONS, PIGLET_TTS_SPEED, PIGLET_VOICE,
 )
 from server.schema import NPCModelReply, PreloadedNPCReply, SuggestedReply
 from server.storage import save_asset
@@ -76,13 +76,13 @@ _npc_sessions: dict[str, dict] = {}
 
 PRESET_WORLDS = {
     "pumpkin-farm": {
-        "templateId": "76VwFrCWC21dOuUiBJWhA",
+        "templateId": "CaJ7U4wCJuaR8TmHmyvOp",
         "title": "Pumpkin Farm",
         "subtitle": "Autumn paths, cider, and cozy barns",
         "emoji": "🎃",
     },
     "moon-station": {
-        "templateId": "Kgo4d31zD9kv1nANmRLep",
+        "templateId": "tISvEVUXR6nUIuWUNhqbY",
         "title": "Moon Station",
         "subtitle": "Moon views, space gardens, and cosmic clues",
         "emoji": "🚀",
@@ -93,13 +93,20 @@ PRESET_WORLDS = {
         "subtitle": "Floating toys, rainbow bridges, and sky-high clues",
         "emoji": "☁️",
     },
+    "dracula-castle": {
+        "templateId": "3v62ihEvJ-q8DM_Mda_l3",
+        "title": "Dracula Castle",
+        "subtitle": "Moonlit halls, friendly monsters, and Gothic clues",
+        "emoji": "🧛",
+    },
 }
 
 
 CURATED_CLUE_OPENERS = {
-    "pumpkin-farm": {"cow": "Moo… ", "goat": "Baa—", "duck": "Quack! "},
-    "moon-station": {"captain_owl": "Hoo… ", "robot_rabbit": "Boop! ", "chef_cat": "Meow! "},
+    "pumpkin-farm": {"cow": "Moo… ", "owl": "Hoo… ", "duck": "Quack! "},
+    "moon-station": {"astro_owl": "Hoo… ", "robot_rabbit": "Boop! ", "cat_captain": "Meow! "},
     "toy-shop-clouds": {"npc-parrot": "Squawk! ", "npc-bunny": "Sniff-sniff! ", "npc-bear": "Grr-hmm… "},
+    "dracula-castle": {"n1": "Eek! ", "n2": "Tap-tap… ", "n3": "Awoo! "},
 }
 
 
@@ -392,13 +399,18 @@ async def piglet_speech(game_id: str, body: PigletSpeechBody):
         raise HTTPException(status_code=400, detail="text_too_long")
 
     digest = hashlib.sha256(
-        f"{PIGLET_VOICE}:{PIGLET_TTS_INSTRUCTIONS}:{text}".encode()
+        f"{PIGLET_VOICE}:{PIGLET_TTS_SPEED}:{PIGLET_TTS_INSTRUCTIONS}:{text}".encode()
     ).hexdigest()[:16]
     asset_key = f"shared-audio/piglet_{digest}.mp3"
     asset_path = ASSETS_DIR / asset_key
     if not asset_path.exists():
         try:
-            audio = await generate_tts(text, PIGLET_VOICE, PIGLET_TTS_INSTRUCTIONS)
+            audio = await generate_tts(
+                text,
+                PIGLET_VOICE,
+                PIGLET_TTS_INSTRUCTIONS,
+                speed=PIGLET_TTS_SPEED,
+            )
             save_asset(asset_key, audio)
         except Exception as exc:
             print(f"[piglet-tts:{game_id}] {exc}")
@@ -553,6 +565,14 @@ async def solve(game_id: str, body: SolveBody):
 @app.get("/healthz")
 async def healthz():
     return "ok"
+
+
+# The distributable image serves the compiled React app from the same FastAPI
+# process. Development and production-compose builds leave STATIC_DIR absent and
+# continue using Vite/Nginx exactly as before. Keep this mount last so API,
+# sharing, health, and generated-asset routes retain priority.
+if STATIC_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="frontend")
 
 
 if __name__ == "__main__":

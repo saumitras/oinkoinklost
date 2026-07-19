@@ -1,0 +1,752 @@
+{
+  "id": "CaJ7U4wCJuaR8TmHmyvOp",
+  "idea": "a cozy autumn pumpkin farm with pumpkin patches, a warm barn, an apple orchard, friendly farm animals, golden leaves, and clear open paths",
+  "createdAt": "2026-07-19T14:16:29.110623+00:00",
+  "status": "playable",
+  "stages": {
+    "bible": "done",
+    "street": "done",
+    "outline": "done",
+    "hotspots": "done",
+    "character": "done",
+    "npc_openers": "done",
+    "tts": "done",
+    "room_barn": "done",
+    "room_orchard": "done",
+    "room_pumpkin_stall": "done"
+  },
+  "bible": {
+    "title": "Pumpkin Farm Mystery",
+    "setting": {
+      "name": "Maple Patch Farm",
+      "description": "A cozy autumn pumpkin farm with a warm barn, an apple orchard, friendly farm animals, golden leaves, and clear open paths.",
+      "decorations": [
+        "pumpkin patches",
+        "stacked hay bales",
+        "apple trees with red fruit",
+        "golden leaf piles",
+        "wooden fences",
+        "red farm lanterns",
+        "wheelbarrows",
+        "little scarecrow signs"
+      ]
+    },
+    "player": {
+      "description": "A small baby pig with a round pink face, tiny trotters, and bright curious eyes",
+      "accessory": "a soft orange scarf"
+    },
+    "narratorIntro": "Piglet the baby pig got a little turned around on Maple Patch Farm. The paths are clear, the leaves are golden, and three friendly neighbors are ready to help Piglet find Mama Pig.",
+    "buildings": [
+      {
+        "id": "barn",
+        "name": "Warm Barn",
+        "exteriorDescription": "A big red barn with a glowing doorway, a tidy hay porch, and pumpkins stacked by the steps.",
+        "sizeHint": "large",
+        "isEnterable": true,
+        "interiorDescription": "Inside is a cozy barn room with hay bales, a feed shelf, and warm lantern light.",
+        "npcId": "cow"
+      },
+      {
+        "id": "orchard",
+        "name": "Apple Orchard Shed",
+        "exteriorDescription": "A small wooden shed beside neat rows of apple trees, with a basket rack and a painted apple sign.",
+        "sizeHint": "medium",
+        "isEnterable": true,
+        "interiorDescription": "Inside is a little orchard stop with apple crates, a stamp table, and a sweet cider smell.",
+        "npcId": "owl"
+      },
+      {
+        "id": "pumpkin_stall",
+        "name": "Pumpkin Patch Stand",
+        "exteriorDescription": "A cheerful open stand at the edge of the pumpkin patch, with round orange pumpkins piled high.",
+        "sizeHint": "medium",
+        "isEnterable": true,
+        "interiorDescription": "Inside is a tiny market nook with a pumpkin counter, ribbon tags, and a chalkboard price sign.",
+        "npcId": "duck"
+      },
+      {
+        "id": "hayloft",
+        "name": "Hayloft Stack",
+        "exteriorDescription": "A tall stack of golden hay bales with a rope ladder and a sleepy crow perch on top.",
+        "sizeHint": "small",
+        "isEnterable": false,
+        "interiorDescription": null,
+        "npcId": null
+      },
+      {
+        "id": "tool_shed",
+        "name": "Tool Shed",
+        "exteriorDescription": "A tiny blue shed with rakes, trowels, and a row of boots resting outside.",
+        "sizeHint": "small",
+        "isEnterable": false,
+        "interiorDescription": null,
+        "npcId": null
+      },
+      {
+        "id": "corn_crate",
+        "name": "Corn Crate Corner",
+        "exteriorDescription": "A shaded corner with a big corn crate, a wheelbarrow, and a bundle of dried stalks.",
+        "sizeHint": "small",
+        "isEnterable": false,
+        "interiorDescription": null,
+        "npcId": null
+      }
+    ],
+    "npcs": [
+      {
+        "id": "cow",
+        "name": "Mabel",
+        "species": "cow",
+        "appearance": "A gentle brown cow with a cream snout, a blue collar, and tidy white spots.",
+        "personality": "Calm, kind, and a little sleepy in a cozy way.",
+        "roomPosition": "center",
+        "ttsVoice": "alloy",
+        "lines": {
+          "greeting": "Moo, hello there, little friend!",
+          "hint": "I am sure Mama did not stop at Warm Barn.",
+          "idle": "Moo... the hay smells nice today."
+        },
+        "conversation": {
+          "speechStyle": "Slow and soft, with gentle moos.",
+          "favoriteTopic": "Hay and warm naps",
+          "smallTalkFacts": [
+            "The barn lights glow at dusk.",
+            "She likes to chew hay after work.",
+            "She hears the pumpkin carts roll by all day."
+          ],
+          "openingChoices": [
+            "Say hello",
+            "Ask about the barn",
+            "Ask for a clue"
+          ],
+          "clueLeadIn": "Moo, I noticed where Mama waddled last.",
+          "animalSound": "Moo"
+        }
+      },
+      {
+        "id": "owl",
+        "name": "Ollie",
+        "species": "owl",
+        "appearance": "A round owl with speckled feathers, a tiny vest, and big shiny eyes.",
+        "personality": "Wise, quiet, and pleasantly chatty.",
+        "roomPosition": "left",
+        "ttsVoice": "echo",
+        "lines": {
+          "greeting": "Hoo-hoo, welcome!",
+          "hint": "I am sure Mama did not stop at Pumpkin Patch Stand.",
+          "idle": "Hoo... I know every crunchy leaf here."
+        },
+        "conversation": {
+          "speechStyle": "Soft and thoughtful, with little hoots.",
+          "favoriteTopic": "Apple trees and leaf piles",
+          "smallTalkFacts": [
+            "The orchard rows are neat and easy to walk through.",
+            "Apples fall into baskets when they are ripe.",
+            "He watches the paths from a low branch at sunset."
+          ],
+          "openingChoices": [
+            "Say hello",
+            "Ask about apples",
+            "Ask for a clue"
+          ],
+          "clueLeadIn": "Hoo, I spotted her near a place with fruit trees.",
+          "animalSound": "Hoo"
+        }
+      },
+      {
+        "id": "duck",
+        "name": "Dotty",
+        "species": "duck",
+        "appearance": "A bright yellow duck with a red ribbon and a shiny orange beak.",
+        "personality": "Cheery, bouncy, and helpful.",
+        "roomPosition": "right",
+        "ttsVoice": "fable",
+        "lines": {
+          "greeting": "Quack, hi, hi!",
+          "hint": "I am sure Mama did not stop at Hayloft Stack.",
+          "idle": "Quack! The pumpkins are extra round today."
+        },
+        "conversation": {
+          "speechStyle": "Fast and peppy, with happy quacks.",
+          "favoriteTopic": "Pumpkins and ribbon tags",
+          "smallTalkFacts": [
+            "The stand is full of round orange pumpkins.",
+            "Dotty likes to tap signs with her beak.",
+            "Visitors can walk straight to the stand on the open path."
+          ],
+          "openingChoices": [
+            "Say hello",
+            "Ask about pumpkins",
+            "Ask for a clue"
+          ],
+          "clueLeadIn": "Quack, I saw Mama looking at something bright and round.",
+          "animalSound": "Quack"
+        }
+      }
+    ],
+    "hints": [
+      {
+        "id": "hint_attribute",
+        "npcId": "cow",
+        "kind": "attribute",
+        "text": "I am sure Mama did not stop at Warm Barn.",
+        "eliminatesLocationIds": [
+          "barn"
+        ]
+      },
+      {
+        "id": "hint_direction",
+        "npcId": "owl",
+        "kind": "direction",
+        "text": "I am sure Mama did not stop at Pumpkin Patch Stand.",
+        "eliminatesLocationIds": [
+          "pumpkin_stall"
+        ]
+      },
+      {
+        "id": "hint_object",
+        "npcId": "duck",
+        "kind": "object",
+        "text": "I am sure Mama did not stop at Hayloft Stack.",
+        "eliminatesLocationIds": [
+          "hayloft"
+        ]
+      }
+    ],
+    "candidateLocations": [
+      {
+        "id": "barn",
+        "name": "Warm Barn",
+        "emoji": "\ud83d\udc2e",
+        "description": "A cozy red barn with lantern light and soft hay inside.",
+        "clueFacts": {
+          "attribute": "that smells like warm straw",
+          "direction": "beside the north path",
+          "object": "with a glowing lantern shelf"
+        }
+      },
+      {
+        "id": "orchard",
+        "name": "Apple Orchard Shed",
+        "emoji": "\ud83c\udf4e",
+        "description": "A little shed beside the apple trees, with baskets and cider smells.",
+        "clueFacts": {
+          "attribute": "that smells like warm apples",
+          "direction": "beside the east orchard rows",
+          "object": "with a shiny apple basket rack"
+        }
+      },
+      {
+        "id": "pumpkin_stall",
+        "name": "Pumpkin Patch Stand",
+        "emoji": "\ud83c\udf83",
+        "description": "A cheerful stand with pumpkins piled high and a chalkboard sign.",
+        "clueFacts": {
+          "attribute": "that smells like sweet pumpkins",
+          "direction": "beside the south path",
+          "object": "with a shiny apple basket rack"
+        }
+      },
+      {
+        "id": "hayloft",
+        "name": "Hayloft Stack",
+        "emoji": "\ud83c\udf3e",
+        "description": "Tall hay bales with a rope ladder and a sleepy perch.",
+        "clueFacts": {
+          "attribute": "that smells like warm straw",
+          "direction": "beside the west fence",
+          "object": "with a rope ladder"
+        }
+      }
+    ],
+    "finalLocationId": "orchard",
+    "finalLocationBuildingId": "orchard",
+    "reunionLine": "Mama Pig is here by the apple trees! Oink, oink, you found her!",
+    "verification": "Each clue rules out one wrong place; only Apple Orchard Shed remains.",
+    "visualDirection": {
+      "layout": "outdoor_hub",
+      "architecture": "A tidy autumn farm with a central dirt path, a red barn to one side, an apple orchard lane to the other, and pumpkin patches and animal pens arranged around the path.",
+      "palette": [
+        "pumpkin orange",
+        "barn red",
+        "apple red",
+        "golden yellow",
+        "hay gold",
+        "warm brown"
+      ],
+      "lighting": "Bright clear daytime light with a soft golden autumn glow.",
+      "atmosphere": "Cozy, friendly, and gently funny, with crisp fall charm and lots of open space for little feet.",
+      "walkableSurface": "Packed dirt paths, wooden boardwalk edges, and neat straw mats near doorways.",
+      "imageStyle": "Storybook children's illustration with soft textures and simple shapes.",
+      "avoid": [
+        "dark horror lighting",
+        "gothic shadows",
+        "muddy clutter",
+        "threatening animals",
+        "realistic fear",
+        "gore",
+        "storm clouds"
+      ]
+    }
+  },
+  "assets": {
+    "streetUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/street.png",
+    "outlineUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/outline.png",
+    "characterFrontUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/char_front.png",
+    "characterSideUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/char_side.png",
+    "rooms": {
+      "barn": {
+        "imageUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/room_barn.png",
+        "annotation": {
+          "npcBox": {
+            "x": 348.0,
+            "y": 461.0,
+            "w": 414.0,
+            "h": 329.0
+          },
+          "exit": {
+            "x": 515.0,
+            "y": 906.0
+          }
+        }
+      },
+      "orchard": {
+        "imageUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/room_orchard.png",
+        "annotation": {
+          "npcBox": {
+            "x": 152.0,
+            "y": 541.0,
+            "w": 159.0,
+            "h": 242.0
+          },
+          "exit": {
+            "x": 496.0,
+            "y": 1008.0
+          }
+        }
+      },
+      "pumpkin_stall": {
+        "imageUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/room_pumpkin_stall.png",
+        "annotation": {
+          "npcBox": {
+            "x": 648.0,
+            "y": 528.0,
+            "w": 165.0,
+            "h": 223.0
+          },
+          "exit": {
+            "x": 520.0,
+            "y": 992.0
+          }
+        }
+      }
+    },
+    "audio": {
+      "npc_duck.hint": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/hint_duck_e2f9a16c8108aac3.mp3",
+      "npc_owl.hint": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/hint_owl_8aa1f216d0ad11d0.mp3",
+      "npc_cow.hint": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/hint_cow_69b31e6cfd3658a3.mp3",
+      "narrator.allHints": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/narrator.allHints.mp3",
+      "npc_cow.idle": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/idle_cow_fc1fd9d5bac3e32b.mp3",
+      "npc_owl.idle": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/idle_owl_68193bc738ddf406.mp3",
+      "building_tool_shed.look": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/building_tool_shed.look.mp3",
+      "narrator.reunion": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/narrator.reunion.mp3",
+      "npc_duck.idle": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/idle_duck_5a6b004ea5430459.mp3",
+      "building_hayloft.look": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/building_hayloft.look.mp3",
+      "building_corn_crate.look": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/building_corn_crate.look.mp3",
+      "narrator.intro": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/narrator.intro.mp3",
+      "npc_cow.greeting": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/opener_cow_fdd5d5c6d4aa70d8.mp3",
+      "npc_owl.greeting": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/opener_owl_5ee4718638bb8cfb.mp3",
+      "npc_duck.greeting": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/opener_duck_1fd9479107383205.mp3"
+    },
+    "npcOpeners": {
+      "duck": {
+        "reply": "Quack, hi, hi!",
+        "suggestedReplies": [
+          {
+            "text": "Say hello",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Ask about pumpkins",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Have you seen my Mama?",
+            "intent": "ask_mama"
+          }
+        ],
+        "mood": "cheerful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/opener_duck_1fd9479107383205.mp3"
+      },
+      "owl": {
+        "reply": "Hoo-hoo, welcome!",
+        "suggestedReplies": [
+          {
+            "text": "Say hello",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Ask about apples",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Have you seen my Mama?",
+            "intent": "ask_mama"
+          }
+        ],
+        "mood": "cheerful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/opener_owl_5ee4718638bb8cfb.mp3"
+      },
+      "cow": {
+        "reply": "Moo, hello there, little friend!",
+        "suggestedReplies": [
+          {
+            "text": "Say hello",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Ask about the barn",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Have you seen my Mama?",
+            "intent": "ask_mama"
+          }
+        ],
+        "mood": "cheerful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/opener_cow_fdd5d5c6d4aa70d8.mp3"
+      }
+    },
+    "npcMamaReplies": {
+      "duck": {
+        "reply": "Quack, I saw Mama looking at something bright and round. Quack! Mama didn't stop at Hayloft Stack. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Pumpkins and ribbon tags.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_hayloft_duck_0cfa78ad04c5a4b5.mp3"
+      },
+      "owl": {
+        "reply": "Hoo, I spotted her near a place with fruit trees. Hoo\u2026 Mama didn't stop at Pumpkin Patch Stand. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Apple trees and leaf piles.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_pumpkin_stall_owl_53d37b8f60a920ad.mp3"
+      },
+      "cow": {
+        "reply": "Moo, I noticed where Mama waddled last. Moo\u2026 Mama didn't stop at Warm Barn. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Hay and warm naps.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_barn_cow_5429ad028d08bb77.mp3"
+      }
+    },
+    "npcMamaReplyVariants": {
+      "cow:barn": {
+        "reply": "Moo, I noticed where Mama waddled last. Moo\u2026 Mama didn't stop at Warm Barn. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Hay and warm naps.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_barn_cow_5429ad028d08bb77.mp3"
+      },
+      "cow:orchard": {
+        "reply": "Moo, I noticed where Mama waddled last. Moo\u2026 Mama didn't stop at Apple Orchard Shed. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Hay and warm naps.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_orchard_cow_e2bdc556ca1ba26d.mp3"
+      },
+      "cow:pumpkin_stall": {
+        "reply": "Moo, I noticed where Mama waddled last. Moo\u2026 Mama didn't stop at Pumpkin Patch Stand. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Hay and warm naps.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_pumpkin_stall_cow_1d8f1aeb5f349d12.mp3"
+      },
+      "cow:hayloft": {
+        "reply": "Moo, I noticed where Mama waddled last. Moo\u2026 Mama didn't stop at Hayloft Stack. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Hay and warm naps.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_hayloft_cow_c393983b9d9cec7d.mp3"
+      },
+      "owl:barn": {
+        "reply": "Hoo, I spotted her near a place with fruit trees. Hoo\u2026 Mama didn't stop at Warm Barn. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Apple trees and leaf piles.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_barn_owl_eb95ac0d46b52f32.mp3"
+      },
+      "owl:orchard": {
+        "reply": "Hoo, I spotted her near a place with fruit trees. Hoo\u2026 Mama didn't stop at Apple Orchard Shed. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Apple trees and leaf piles.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_orchard_owl_0e6472ac37315553.mp3"
+      },
+      "owl:pumpkin_stall": {
+        "reply": "Hoo, I spotted her near a place with fruit trees. Hoo\u2026 Mama didn't stop at Pumpkin Patch Stand. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Apple trees and leaf piles.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_pumpkin_stall_owl_53d37b8f60a920ad.mp3"
+      },
+      "owl:hayloft": {
+        "reply": "Hoo, I spotted her near a place with fruit trees. Hoo\u2026 Mama didn't stop at Hayloft Stack. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Apple trees and leaf piles.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_hayloft_owl_94b0c29cad568778.mp3"
+      },
+      "duck:barn": {
+        "reply": "Quack, I saw Mama looking at something bright and round. Quack! Mama didn't stop at Warm Barn. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Pumpkins and ribbon tags.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_barn_duck_aee47363395a92ff.mp3"
+      },
+      "duck:orchard": {
+        "reply": "Quack, I saw Mama looking at something bright and round. Quack! Mama didn't stop at Apple Orchard Shed. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Pumpkins and ribbon tags.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_orchard_duck_ff86d9a23b12e0bb.mp3"
+      },
+      "duck:pumpkin_stall": {
+        "reply": "Quack, I saw Mama looking at something bright and round. Quack! Mama didn't stop at Pumpkin Patch Stand. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Pumpkins and ribbon tags.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_pumpkin_stall_duck_0cd9cec88426994c.mp3"
+      },
+      "duck:hayloft": {
+        "reply": "Quack, I saw Mama looking at something bright and round. Quack! Mama didn't stop at Hayloft Stack. I'm sure of that.",
+        "suggestedReplies": [
+          {
+            "text": "Tell me about Pumpkins and ribbon tags.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Thank you!",
+            "intent": "goodbye"
+          }
+        ],
+        "mood": "helpful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/audio/mama_hayloft_duck_0cfa78ad04c5a4b5.mp3"
+      }
+    },
+    "reunionPhotoUrl": "/assets/games/CaJ7U4wCJuaR8TmHmyvOp/reunion.png"
+  },
+  "annotation": {
+    "grid": [
+      "0000001111111111",
+      "0000000001111111",
+      "0000000101111111",
+      "0000000100110001",
+      "0000010111100100",
+      "0000010111100100",
+      "0100011111110100",
+      "1111111111111111",
+      "0101001111101011",
+      "0001001111101011",
+      "0000001111100011",
+      "0000000111111010",
+      "0000000011100010",
+      "0000110011100010",
+      "0000011111100010",
+      "0000111111110000"
+    ],
+    "doors": [
+      {
+        "buildingId": "barn",
+        "x": 359.0,
+        "y": 268.0,
+        "cell": {
+          "col": 5,
+          "row": 4
+        }
+      },
+      {
+        "buildingId": "orchard",
+        "x": 840.0,
+        "y": 264.0,
+        "cell": {
+          "col": 13,
+          "row": 4
+        }
+      },
+      {
+        "buildingId": "pumpkin_stall",
+        "x": 221.0,
+        "y": 525.0,
+        "cell": {
+          "col": 3,
+          "row": 8
+        }
+      },
+      {
+        "buildingId": "hayloft",
+        "x": 500.0,
+        "y": 145.0,
+        "cell": {
+          "col": 7,
+          "row": 2
+        }
+      },
+      {
+        "buildingId": "tool_shed",
+        "x": 820.0,
+        "y": 526.0,
+        "cell": {
+          "col": 12,
+          "row": 8
+        }
+      },
+      {
+        "buildingId": "corn_crate",
+        "x": 897.0,
+        "y": 861.0,
+        "cell": {
+          "col": 14,
+          "row": 13
+        }
+      }
+    ],
+    "spawn": {
+      "col": 8,
+      "row": 7
+    }
+  },
+  "fromWarmPool": false,
+  "cozyVisuals": false,
+  "librarySourceId": null
+}

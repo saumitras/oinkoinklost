@@ -1,4 +1,4 @@
-"""Regenerate Moon Station's curated NPC openers with character voice direction."""
+"""Regenerate Moon Station NPC dialogue with distinct natural voices."""
 
 from __future__ import annotations
 
@@ -7,42 +7,67 @@ import hashlib
 import json
 from pathlib import Path
 
-from server.ai import build_npc_opener, generate_tts, npc_tts_profile
+from server.ai import build_npc_mama_reply, build_npc_opener, generate_tts, npc_tts_profile
 from server.schema import Game, PreloadedNPCReply
 
 
 ROOT = Path(__file__).resolve().parent.parent
-TEMPLATE_ID = "Kgo4d31zD9kv1nANmRLep"
+TEMPLATE_ID = "tISvEVUXR6nUIuWUNhqbY"
 TEMPLATE_DIR = ROOT / "preset-assets" / "games" / TEMPLATE_ID
 STATE_PATH = TEMPLATE_DIR / "state.json"
+ANIMAL_SOUNDS = {"astro_owl": "Hoo", "robot_rabbit": "Boop", "cat_captain": "Meow"}
+CLUE_OPENERS = {"astro_owl": "Hoo… ", "robot_rabbit": "Boop! ", "cat_captain": "Meow! "}
+
+
+async def save_performance(game: Game, npc_id: str, label: str, text: str) -> str:
+    npc = next(npc for npc in game.bible.npcs if npc.id == npc_id)  # type: ignore[union-attr]
+    voice, instructions = npc_tts_profile(npc, game.bible)
+    audio = await generate_tts(text, voice, instructions)
+    digest = hashlib.sha256(f"{npc_id}:{voice}:{instructions}:{text}".encode()).hexdigest()[:16]
+    filename = f"{label}_{npc_id}_{digest}.mp3"
+    (TEMPLATE_DIR / "audio" / filename).write_bytes(audio)
+    return f"/assets/games/{TEMPLATE_ID}/audio/{filename}"
 
 
 async def main() -> None:
-    state = json.loads(STATE_PATH.read_text())
-    game = Game.model_validate(state)
+    game = Game.model_validate(json.loads(STATE_PATH.read_text()))
     if not game.bible:
         raise RuntimeError("Moon Station template has no game bible")
 
+    game.assets.npcMamaReplyVariants = {}
     for npc in game.bible.npcs:
-        turn = build_npc_opener(npc, game.bible)
-        voice, instructions = npc_tts_profile(npc, game.bible)
-        audio = await generate_tts(turn.reply, voice, instructions)
-        digest = hashlib.sha256(
-            f"{npc.id}:{voice}:{instructions}:{turn.reply}".encode()
-        ).hexdigest()[:16]
-        filename = f"opener_{npc.id}_{digest}.mp3"
-        relative_url = f"/assets/games/{TEMPLATE_ID}/audio/{filename}"
-        (TEMPLATE_DIR / "audio" / filename).write_bytes(audio)
-        game.assets.npcOpeners[npc.id] = PreloadedNPCReply(
-            **turn.model_dump(),
-            audioUrl=relative_url,
-        )
-        game.assets.audio[f"npc_{npc.id}.greeting"] = relative_url
-        state["assets"].setdefault("npcOpeners", {})[npc.id] = game.assets.npcOpeners[npc.id].model_dump()
-        state["assets"]["audio"][f"npc_{npc.id}.greeting"] = relative_url
-        print(f"generated {npc.name}: {voice} -> {filename}")
+        npc.conversation.animalSound = ANIMAL_SOUNDS[npc.id]
+        opener = build_npc_opener(npc, game.bible)
+        opener_url = await save_performance(game, npc.id, "opener", opener.reply)
+        game.assets.npcOpeners[npc.id] = PreloadedNPCReply(**opener.model_dump(), audioUrl=opener_url)
+        game.assets.audio[f"npc_{npc.id}.greeting"] = opener_url
 
-    STATE_PATH.write_text(json.dumps(state, indent=2) + "\n")
+        for line_name in ("hint", "idle"):
+            text = getattr(npc.lines, line_name)
+            game.assets.audio[f"npc_{npc.id}.{line_name}"] = await save_performance(
+                game, npc.id, line_name, text
+            )
+
+        hint = next(item for item in game.bible.hints if item.npcId == npc.id)
+        original_text = hint.text
+        original_eliminated = hint.eliminatesLocationIds
+        for candidate in game.bible.candidateLocations:
+            hint.text = f"{CLUE_OPENERS[npc.id]}Mama didn't stop at {candidate.name}. I'm sure of that."
+            hint.eliminatesLocationIds = [candidate.id]
+            reply = build_npc_mama_reply(npc, game.bible)
+            audio_url = await save_performance(game, npc.id, f"mama_{candidate.id}", reply.reply)
+            game.assets.npcMamaReplyVariants[f"{npc.id}:{candidate.id}"] = PreloadedNPCReply(
+                **reply.model_dump(), audioUrl=audio_url
+            )
+        hint.text = original_text
+        hint.eliminatesLocationIds = original_eliminated
+
+        current_reply = build_npc_mama_reply(npc, game.bible)
+        current_key = f"{npc.id}:{hint.eliminatesLocationIds[0]}"
+        game.assets.npcMamaReplies[npc.id] = game.assets.npcMamaReplyVariants[current_key]
+        print(f"generated natural dialogue for {npc.name}")
+
+    STATE_PATH.write_text(json.dumps(game.model_dump(), indent=2) + "\n")
 
 
 if __name__ == "__main__":

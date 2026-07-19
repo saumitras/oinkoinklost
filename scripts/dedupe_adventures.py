@@ -27,7 +27,12 @@ from server.schema import Game
 from server.schema_utils import make_strict_schema
 
 
-PROTECTED_IDS = {"76VwFrCWC21dOuUiBJWhA", "Kgo4d31zD9kv1nANmRLep"}
+PROTECTED_IDS = {
+    "CaJ7U4wCJuaR8TmHmyvOp",
+    "tISvEVUXR6nUIuWUNhqbY",
+    "cjfwNIfLt411ZZKDOC0Qo",
+    "3v62ihEvJ-q8DM_Mda_l3",
+}
 
 
 class DuplicateGroup(BaseModel):
