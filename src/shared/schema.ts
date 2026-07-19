@@ -151,6 +151,7 @@ export interface Game {
     rooms: Record<string, { imageUrl?: string; annotation?: RoomAnnotation }>
     audio: Record<string, string>
     npcOpeners?: Record<string, PreloadedNPCReply>
+    npcMamaReplies?: Record<string, PreloadedNPCReply>
     reunionPhotoUrl?: string
   }
   annotation?: ScreenAnnotation

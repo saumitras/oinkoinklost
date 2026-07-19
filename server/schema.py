@@ -174,6 +174,7 @@ class GameAssets(BaseModel):
     rooms: dict[str, RoomAssets] = {}
     audio: dict[str, str] = {}
     npcOpeners: dict[str, PreloadedNPCReply] = {}
+    npcMamaReplies: dict[str, PreloadedNPCReply] = {}
     reunionPhotoUrl: Optional[str] = None
 
 

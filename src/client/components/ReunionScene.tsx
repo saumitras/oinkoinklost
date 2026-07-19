@@ -32,21 +32,6 @@ export function ReunionScene({ game, onNewAdventure, accomplishments = [] }: Pro
     if (url) playAudio(url).catch(() => {})
   }, [game.assets.audio])
 
-  async function shareAdventure() {
-    const adventureId = game.librarySourceId ?? game.id
-    const shareData = {
-      title: game.bible?.title ?? 'Oink Oink Lost',
-      text: `I helped Piglet find Mama in ${game.bible?.setting.name ?? 'a magical world'}!`,
-      url: `${window.location.origin}/?adventure=${encodeURIComponent(adventureId)}`,
-    }
-    if (navigator.share) {
-      await navigator.share(shareData).catch(() => {})
-    } else {
-      await navigator.clipboard?.writeText(`${shareData.text} ${shareData.url}`).catch(() => {})
-      setShareStatus('Adventure link copied!')
-    }
-  }
-
   async function shareOnWhatsApp() {
     const shareUrl = `${window.location.origin}/share/${encodeURIComponent(game.id)}`
     const text = `I helped Piglet find Mama in ${game.bible?.setting.name ?? 'a magical world'}! Play this Oink Oink Lost adventure: ${shareUrl}`
@@ -139,14 +124,53 @@ export function ReunionScene({ game, onNewAdventure, accomplishments = [] }: Pro
           </div>
         )}
         <div style={styles.actions}>
-          <button style={styles.shareBtn} onClick={shareAdventure}>📮 Share postcard</button>
-          <button style={styles.whatsappBtn} onClick={shareOnWhatsApp} disabled={!photoUrl}>WhatsApp photo</button>
-          <button style={styles.downloadBtn} onClick={downloadPhoto} disabled={!photoUrl}>⇩ Download photo</button>
-          <button style={styles.btn} onClick={onNewAdventure}>🌟 New Adventure!</button>
+          <button
+            style={{ ...styles.iconBtn, ...styles.whatsappBtn }}
+            onClick={shareOnWhatsApp}
+            disabled={!photoUrl}
+            aria-label="Share reunion photo on WhatsApp"
+            title="Share reunion photo on WhatsApp"
+          >
+            <WhatsAppIcon />
+          </button>
+          <button
+            style={{ ...styles.iconBtn, ...styles.downloadBtn }}
+            onClick={downloadPhoto}
+            disabled={!photoUrl}
+            aria-label="Download reunion photo"
+            title="Download reunion photo"
+          >
+            <DownloadIcon />
+          </button>
+          <button
+            style={{ ...styles.newAdventureBtn, ...styles.btn }}
+            onClick={onNewAdventure}
+          >
+            <span aria-hidden="true">🌟</span> New adventure
+          </button>
         </div>
         {shareStatus && <div style={styles.shareStatus} role="status">{shareStatus}</div>}
       </div>
     </div>
+  )
+}
+
+function WhatsAppIcon() {
+  return (
+    <svg aria-hidden="true" width="25" height="25" viewBox="0 0 24 24" fill="none">
+      <path d="M20.5 11.7a8.5 8.5 0 0 1-12.6 7.4L3.5 20.3l1.2-4.2a8.5 8.5 0 1 1 15.8-4.4Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M8.2 7.7c.2-.4.5-.4.8-.4h.4c.2 0 .4.1.5.4l.8 1.8c.1.3.1.5-.1.7l-.7.8c-.2.2-.1.4 0 .6.7 1.2 1.7 2.1 3 2.7.2.1.4.1.6-.1l.8-1c.2-.2.4-.3.7-.2l1.8.9c.3.1.4.3.4.5 0 .4-.2 1.3-.6 1.7-.4.5-1.2.8-2 .8-.7 0-1.7-.3-3.2-1-1.9-.9-3.5-2.5-4.5-4.3-.7-1.3-1-2.4-.9-3.1.1-.4.1-.5.2-.8Z" fill="currentColor" />
+    </svg>
+  )
+}
+
+function DownloadIcon() {
+  return (
+    <svg aria-hidden="true" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v12" />
+      <path d="m7.5 11 4.5 4.5 4.5-4.5" />
+      <path d="M5 20h14" />
+    </svg>
   )
 }
 
@@ -201,27 +225,25 @@ const styles: Record<string, React.CSSProperties> = {
   memoryBadges: { display: 'flex', justifyContent: 'center', gap: 7, flexWrap: 'wrap' },
   memoryBadge: { padding: '7px 10px', borderRadius: 99, background: 'white', fontWeight: 800, boxShadow: '0 2px 6px rgba(80,50,20,0.1)' },
   btn: {
-    padding: '14px 32px',
-    fontSize: 18,
-    fontWeight: 700,
     background: '#e07b54',
     color: 'white',
-    border: 'none',
-    borderRadius: 12,
-    cursor: 'pointer',
   },
   actions: { display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap' },
-  shareBtn: {
-    padding: '14px 24px', fontSize: 16, fontWeight: 800, background: '#f5e6d3',
-    color: '#9b573d', border: 'none', borderRadius: 12, cursor: 'pointer',
+  iconBtn: {
+    width: 50, height: 50, padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 24, border: 'none', borderRadius: 14, cursor: 'pointer',
+    boxShadow: '0 4px 12px rgba(74,45,20,0.16)',
+  },
+  newAdventureBtn: {
+    minHeight: 50, padding: '0 20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    gap: 8, fontSize: 16, fontWeight: 850, border: 'none', borderRadius: 14, cursor: 'pointer',
+    boxShadow: '0 4px 12px rgba(74,45,20,0.16)',
   },
   whatsappBtn: {
-    padding: '14px 20px', fontSize: 15, fontWeight: 850, background: '#25D366',
-    color: 'white', border: 'none', borderRadius: 12, cursor: 'pointer',
+    background: '#25D366', color: 'white',
   },
   downloadBtn: {
-    padding: '14px 20px', fontSize: 15, fontWeight: 850, background: '#edf3ff',
-    color: '#41618e', border: 'none', borderRadius: 12, cursor: 'pointer',
+    background: '#edf3ff', color: '#41618e',
   },
   shareStatus: { marginTop: 10, color: '#57825f', fontSize: 12, fontWeight: 850 },
 }

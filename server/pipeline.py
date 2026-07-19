@@ -15,7 +15,7 @@ from server.ai import (
     generate_bible, generate_street_scene, generate_outline_pass,
     extract_hotspots, generate_character_sprites, generate_room_image,
     extract_room_annotation, generate_tts,
-    build_npc_opener, npc_voice, npc_tts_profile,
+    build_npc_opener, build_npc_mama_reply, npc_voice, npc_tts_profile,
     DEFAULT_TTS_INSTRUCTIONS, NARRATOR_VOICE,
 )
 
@@ -173,18 +173,32 @@ async def _run_npc_openers(game: Game) -> None:
 
     async def prepare(npc):
         turn = build_npc_opener(npc, bible)
-        audio_url = None
-        try:
-            voice, instructions = npc_tts_profile(npc, bible)
-            data = await generate_tts(turn.reply, voice, instructions)
-            digest = hashlib.sha256(f"{npc.id}:{voice}:{instructions}:{turn.reply}".encode()).hexdigest()[:16]
-            audio_url = save_asset(f"games/{game.id}/audio/opener_{digest}.mp3", data)
-        except Exception as e:
-            print(f"[npc-opener-tts:{game.id}:{npc.id}] {e}")
+        mama_turn = build_npc_mama_reply(npc, bible)
+        voice, instructions = npc_tts_profile(npc, bible)
+
+        async def prepare_audio(kind: str, text: str) -> str | None:
+            try:
+                data = await generate_tts(text, voice, instructions)
+                digest = hashlib.sha256(f"{npc.id}:{voice}:{instructions}:{text}".encode()).hexdigest()[:16]
+                return save_asset(f"games/{game.id}/audio/{kind}_{digest}.mp3", data)
+            except Exception as e:
+                print(f"[npc-{kind}-tts:{game.id}:{npc.id}] {e}")
+                return None
+
+        audio_url, mama_audio_url = await asyncio.gather(
+            prepare_audio("opener", turn.reply),
+            prepare_audio("mama", mama_turn.reply),
+        )
         game.assets.npcOpeners[npc.id] = PreloadedNPCReply(
             **turn.model_dump(),
             audioUrl=audio_url,
         )
+        game.assets.npcMamaReplies[npc.id] = PreloadedNPCReply(
+            **mama_turn.model_dump(),
+            audioUrl=mama_audio_url,
+        )
+        if mama_audio_url:
+            game.assets.audio[f"npc_{npc.id}.hint"] = mama_audio_url
         set_game(game)
 
     await asyncio.gather(*[prepare(npc) for npc in bible.npcs])

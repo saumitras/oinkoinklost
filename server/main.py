@@ -19,7 +19,7 @@ from server.pipeline import run_pipeline, pick_random_idea, spawn_task
 from server.gamestore import get_or_load_game, set_game, snapshot_game
 from server.events import subscribe, unsubscribe, emit
 from server.ai import (
-    build_npc_opener, moderate_idea, generate_reunion_photo,
+    build_npc_opener, build_npc_mama_reply, moderate_idea, generate_reunion_photo,
     generate_npc_reply, generate_tts, npc_tts_profile, transcribe_audio,
     PIGLET_TTS_INSTRUCTIONS, PIGLET_VOICE,
 )
@@ -96,6 +96,20 @@ CURATED_CLUE_OPENERS = {
 }
 
 
+def ensure_preloaded_mama_replies(game) -> None:
+    """Backfill old library games without contacting the dialogue model."""
+    if not game.bible:
+        return
+    for npc in game.bible.npcs:
+        if npc.id in game.assets.npcMamaReplies:
+            continue
+        turn = build_npc_mama_reply(npc, game.bible)
+        game.assets.npcMamaReplies[npc.id] = PreloadedNPCReply(
+            **turn.model_dump(),
+            audioUrl=None,
+        )
+
+
 def apply_curated_mystery_variant(game, slug: str) -> None:
     """Reuse curated art with a different truthful Mama location each play."""
     if not game.bible:
@@ -118,10 +132,12 @@ def apply_curated_mystery_variant(game, slug: str) -> None:
         # dialogue speaks this playthrough's variant; replay falls back to the
         # browser voice so no additional generation is needed.
         game.assets.audio.pop(f"npc_{hint.npcId}.hint", None)
+        game.assets.npcMamaReplies.pop(hint.npcId, None)
     game.bible.verification = (
         f"This playthrough eliminates {', '.join(candidate.name for candidate in alternatives)}, "
         f"leaving only {final.name}."
     )
+    ensure_preloaded_mama_replies(game)
 
 
 @app.post("/api/game", status_code=201)
@@ -190,6 +206,7 @@ async def play_library_adventure(adventure_id: str):
     ), None)
     if preset_slug in CURATED_CLUE_OPENERS:
         apply_curated_mystery_variant(game, preset_slug)
+    ensure_preloaded_mama_replies(game)
 
     set_game(game)
     snapshot_game(game)
@@ -214,6 +231,7 @@ async def start_preset(slug: str):
     game.librarySourceId = meta["templateId"]
     if slug in CURATED_CLUE_OPENERS:
         apply_curated_mystery_variant(game, slug)
+    ensure_preloaded_mama_replies(game)
     for npc in game.bible.npcs:  # type: ignore[union-attr]
         if npc.id not in game.assets.npcOpeners:
             opener = build_npc_opener(npc, game.bible)
@@ -389,6 +407,7 @@ async def npc_chat(game_id: str, npc_id: str, body: NPCChatBody):
 
     message = body.message.strip()
     preloaded = game.assets.npcOpeners.get(npc_id)
+    preloaded_mama = game.assets.npcMamaReplies.get(npc_id)
     if body.source != "start" and not state["history"] and preloaded:
         # The client can render a shipped opener immediately without making a
         # setup request. Seed it here when the player's first real turn arrives.
@@ -408,8 +427,11 @@ async def npc_chat(game_id: str, npc_id: str, body: NPCChatBody):
     )
 
     use_preloaded = body.source == "start" and not state["history"] and preloaded is not None
+    use_preloaded_mama = should_grant and asks_for_mama and preloaded_mama is not None
     if use_preloaded:
         turn = NPCModelReply.model_validate(preloaded.model_dump(exclude={"audioUrl"}))
+    elif use_preloaded_mama:
+        turn = NPCModelReply.model_validate(preloaded_mama.model_dump(exclude={"audioUrl"}))
     else:
         try:
             turn = await generate_npc_reply(
@@ -445,8 +467,12 @@ async def npc_chat(game_id: str, npc_id: str, body: NPCChatBody):
     state["history"].append({"role": npc.name, "text": turn.reply})
     state["history"] = state["history"][-10:]
 
-    audio_url = preloaded.audioUrl if use_preloaded and preloaded else None
-    if not use_preloaded:
+    audio_url = (
+        preloaded.audioUrl if use_preloaded and preloaded
+        else preloaded_mama.audioUrl if use_preloaded_mama and preloaded_mama
+        else None
+    )
+    if not use_preloaded and not use_preloaded_mama:
         try:
             voice, instructions = npc_tts_profile(npc, game.bible)
             audio = await generate_tts(turn.reply, voice, instructions)

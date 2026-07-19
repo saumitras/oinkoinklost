@@ -144,7 +144,7 @@ function applyHeight(sprite: Sprite) {
   sprite.scale.set(Math.sign(sprite.scale.x || 1) * scale, scale)
 }
 
-function makeMarker(emoji: string, size = 40, prominentLook = false): Container {
+function makeMarker(emoji: string, size = 40, prominentLook = false, prominentClue = false): Container {
   const marker = new Container()
   marker.visible = false
 
@@ -159,6 +159,29 @@ function makeMarker(emoji: string, size = 40, prominentLook = false): Container 
     })
     label.anchor.set(0.5, 1)
     marker.addChild(halo, label)
+  } else if (prominentClue) {
+    const glow = new Graphics()
+      .circle(0, -25, 36)
+      .fill({ color: 0xffcf33, alpha: 0.18 })
+      .stroke({ color: 0xffcf33, alpha: 0.38, width: 12 })
+      .circle(0, -25, 29)
+      .fill({ color: 0x573c16, alpha: 0.9 })
+      .stroke({ color: 0xffe45e, alpha: 1, width: 6 })
+      .circle(0, -25, 23)
+      .stroke({ color: 0xffffd0, alpha: 0.95, width: 2 })
+    const label = new Text({
+      text: emoji,
+      style: {
+        fontSize: size,
+        fontWeight: '900',
+        fill: 0xffffff,
+        stroke: { color: 0x4a2d00, width: 4 },
+        dropShadow: { color: 0x000000, alpha: 0.55, blur: 3, distance: 2 },
+      },
+    })
+    label.anchor.set(0.5)
+    label.position.set(0, -25)
+    marker.addChild(glow, label)
   } else {
     const label = new Text({ text: emoji, style: { fontSize: size } })
     label.anchor.set(0.5, 1)
@@ -249,9 +272,10 @@ export async function loadStreetScene(game: Game) {
     const hintIndex = game.bible?.hints.findIndex(h => h.npcId === building?.npcId) ?? -1
     const isLookable = !!building && !building.isEnterable
     const marker = makeMarker(
-      hintIndex >= 0 ? ['1️⃣', '2️⃣', '3️⃣'][hintIndex] : '✨',
-      40,
+      hintIndex >= 0 ? String(hintIndex + 1) : '✨',
+      hintIndex >= 0 ? 28 : 40,
       isLookable,
+      hintIndex >= 0,
     )
     marker.position.set(door.x, door.y - 14)
     doorMarkers.set(door.buildingId, marker)

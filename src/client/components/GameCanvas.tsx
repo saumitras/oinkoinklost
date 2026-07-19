@@ -5,7 +5,6 @@ import {
   initEngine, destroyEngine, loadStreetScene, loadRoomScene,
   setRoomQuestObjects, showRoomQuestCompletion,
 } from '../game/engine'
-import { setVirtualKey, type Dir } from '../game/input'
 import { HintTracker } from './HintTracker'
 import { DialogueBubble } from './DialogueBubble'
 import { LocationPicker } from './LocationPicker'
@@ -460,7 +459,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
           <div style={styles.controlsTitle}>CONTROLS</div>
           {isTouch ? (
             <>
-              <div style={styles.controlRow}><span style={styles.controlKey}>D-pad</span><span>Move</span></div>
+              <div style={styles.controlRow}><span style={styles.controlKey}>Tap ground</span><span>Move</span></div>
               <div style={styles.controlRow}><span style={styles.controlKey}>Tap</span><span>Look · Go Inside · Talk</span></div>
             </>
           ) : (
@@ -479,9 +478,6 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
           {store.nearby.label}
         </button>
       )}
-
-      {/* Touch D-pad */}
-      {isTouch && !dialogue && !showIntro && <DPad />}
 
       {toast && <div className="game-toast" style={styles.toast}>{toast}</div>}
 
@@ -532,7 +528,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
 
       {showIntro && <IntroOverlay game={currentGame} microQuestsEnabled={microQuestsEnabled} onBegin={() => {
         setShowIntro(false)
-        if (isTouch) showToast('👆 Tap anywhere to walk, or use the arrow pad. Tap the action button when it appears!', 7200)
+        if (isTouch) showToast('👆 Tap anywhere to walk. Tap the action button when it appears!', 7200)
       }} />}
 
       {/* Re-open picker if dismissed */}
@@ -588,52 +584,6 @@ function SoundIcon({ muted }: { muted: boolean }) {
         </>
       )}
     </svg>
-  )
-}
-
-function DPad() {
-  useEffect(() => {
-    const release = () => {
-      setVirtualKey('up', false)
-      setVirtualKey('down', false)
-      setVirtualKey('left', false)
-      setVirtualKey('right', false)
-    }
-    window.addEventListener('pointerup', release)
-    window.addEventListener('pointercancel', release)
-    window.addEventListener('blur', release)
-    return () => {
-      window.removeEventListener('pointerup', release)
-      window.removeEventListener('pointercancel', release)
-      window.removeEventListener('blur', release)
-      release()
-    }
-  }, [])
-
-  function bind(dir: Dir) {
-    return {
-      onPointerDown: (e: React.PointerEvent) => {
-        e.preventDefault()
-        ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-        setVirtualKey(dir, true)
-      },
-      onPointerUp: () => setVirtualKey(dir, false),
-      onPointerCancel: () => setVirtualKey(dir, false),
-      onPointerLeave: () => setVirtualKey(dir, false),
-    }
-  }
-  return (
-    <div className="game-dpad" style={styles.dpad} aria-label="Movement controls">
-      <div />
-      <button aria-label="Move up" style={styles.dpadBtn} {...bind('up')}>▲</button>
-      <div />
-      <button aria-label="Move left" style={styles.dpadBtn} {...bind('left')}>◀</button>
-      <div />
-      <button aria-label="Move right" style={styles.dpadBtn} {...bind('right')}>▶</button>
-      <div />
-      <button aria-label="Move down" style={styles.dpadBtn} {...bind('down')}>▼</button>
-      <div />
-    </div>
   )
 }
 
@@ -742,14 +692,5 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#e07b54', color: 'white', border: 'none', borderRadius: 16,
     padding: '14px 28px', fontSize: 16, fontWeight: 700, cursor: 'pointer',
     boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-  },
-  dpad: {
-    position: 'absolute', bottom: 22, left: 22,
-    display: 'grid', gridTemplateColumns: '56px 56px 56px', gridTemplateRows: '56px 56px 56px',
-    gap: 4, touchAction: 'none',
-  },
-  dpadBtn: {
-    background: 'rgba(255,255,255,0.7)', border: 'none', borderRadius: 14,
-    fontSize: 20, color: '#5b3a1e', touchAction: 'none', userSelect: 'none',
   },
 }

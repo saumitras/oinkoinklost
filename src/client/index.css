@@ -102,23 +102,6 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   }
   .hint-tracker:not(.hint-tracker-embedded) > button { font-size: 14px !important; gap: 5px !important; }
   .touch-mode .game-controls-legend { display: none !important; }
-  .game-dpad {
-    left: max(12px, env(safe-area-inset-left)) !important;
-    bottom: max(12px, env(safe-area-inset-bottom)) !important;
-    grid-template-columns: repeat(3, 52px) !important;
-    grid-template-rows: repeat(3, 52px) !important;
-    gap: 3px !important;
-    z-index: 20;
-  }
-  .game-dpad button {
-    min-width: 52px;
-    min-height: 52px;
-    background: rgba(255,255,255,0.82) !important;
-    border: 2px solid rgba(255,255,255,0.88) !important;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.28);
-    -webkit-tap-highlight-color: transparent;
-  }
-  .game-dpad button:active { background: #ffce83 !important; transform: scale(0.94); }
   .game-action-button {
     right: max(12px, env(safe-area-inset-right)) !important;
     bottom: max(18px, env(safe-area-inset-bottom)) !important;
@@ -191,11 +174,6 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   .title-preset-grid { grid-template-columns: 1fr !important; }
   .title-preset-card { height: 170px !important; }
   .hint-tracker:not(.hint-tracker-embedded) { width: calc(100vw - 122px) !important; }
-  .game-dpad {
-    grid-template-columns: repeat(3, 48px) !important;
-    grid-template-rows: repeat(3, 48px) !important;
-  }
-  .game-dpad button { min-width: 48px; min-height: 48px; }
   .adventure-global-grid { grid-template-columns: 1fr !important; }
   .adventure-card { height: 265px !important; }
 }
@@ -205,12 +183,6 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 }
 
 @media (max-height: 500px) and (orientation: landscape) {
-  .game-dpad {
-    grid-template-columns: repeat(3, 46px) !important;
-    grid-template-rows: repeat(3, 46px) !important;
-    bottom: max(8px, env(safe-area-inset-bottom)) !important;
-  }
-  .game-dpad button { min-width: 46px; min-height: 46px; }
   .game-action-button { bottom: max(12px, env(safe-area-inset-bottom)) !important; min-height: 52px; }
   .game-toast { bottom: 74px !important; max-width: 52vw !important; }
   .dialogue-panel { max-height: calc(100dvh - 12px) !important; }

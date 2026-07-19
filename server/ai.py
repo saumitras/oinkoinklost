@@ -176,6 +176,28 @@ def build_npc_opener(npc: NPC, bible: GameBible | None = None) -> NPCModelReply:
     )
 
 
+def build_npc_mama_reply(npc: NPC, bible: GameBible) -> NPCModelReply:
+    """Build the high-frequency Mama answer without an interaction-time model call."""
+    hint = next((item for item in bible.hints if item.npcId == npc.id), None)
+    if not hint:
+        raise ValueError(f"Hint missing for NPC: {npc.id}")
+
+    lead_in = npc.conversation.clueLeadIn.strip()
+    if lead_in and lead_in[-1] not in ".!?…":
+        lead_in += "."
+    reply = f"{lead_in} {hint.text}".strip()
+    topic = npc.conversation.favoriteTopic
+    return NPCModelReply(
+        reply=reply,
+        suggestedReplies=[
+            SuggestedReply(text=f"Tell me about {topic}.", intent="small_talk"),
+            SuggestedReply(text="Thank you!", intent="goodbye"),
+        ],
+        mood="helpful",
+        conversationComplete=False,
+    )
+
+
 async def _with_retry(fn, attempts: int = 2, backoff: float = 2.0):
     last: Exception | None = None
     for i in range(attempts):
