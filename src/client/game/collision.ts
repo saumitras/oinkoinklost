@@ -1,6 +1,6 @@
 import type { ScreenAnnotation } from '@shared/schema'
 
-// World == image space: Gemini outputs 1024x1024, grid is 16x16 cells of 64px.
+// World == image space: generated scenes are 1024x1024, using a 16x16 grid of 64px cells.
 export const CELL_SIZE = 64
 export const WORLD_W = 1024
 export const WORLD_H = 1024

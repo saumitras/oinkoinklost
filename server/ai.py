@@ -6,12 +6,9 @@ import io
 import numpy as np
 from PIL import Image
 from openai import AsyncOpenAI
-from google import genai
-from google.genai import types as genai_types
 
 from server.config import (
-    OPENAI_API_KEY, GEMINI_API_KEY, TEXT_MODEL, NPC_MODEL,
-    IMAGE_PROVIDER, GEMINI_IMAGE_MODEL, OPENAI_IMAGE_MODEL,
+    OPENAI_API_KEY, TEXT_MODEL, NPC_MODEL, OPENAI_IMAGE_MODEL,
     OPENAI_IMAGE_QUALITY, OPENAI_IMAGE_SIZE,
     TTS_MODEL, TRANSCRIBE_MODEL, MODERATION_MODEL,
 )
@@ -20,7 +17,6 @@ from server.schema import GameBible, ScreenAnnotation, RoomAnnotation, NPCModelR
 from server.schema_utils import make_strict_schema
 
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 COZY_STYLE_BLOCK = (
     "STYLE: Cozy children's storybook watercolor illustration. Soft pastel palette, "
@@ -537,14 +533,6 @@ VISUAL DIRECTION:
 - Medium: {direction.imageStyle}
 - Avoid: {avoid}"""
 
-def _extract_gemini_image_bytes(response) -> bytes:
-    for part in response.candidates[0].content.parts:
-        if part.inline_data:
-            raw = part.inline_data.data
-            return raw if isinstance(raw, bytes) else base64.b64decode(raw + "=" * (-len(raw) % 4))
-    raise RuntimeError("No image in Gemini response")
-
-
 def _extract_openai_image_bytes(response) -> bytes:
     if not response.data or not response.data[0].b64_json:
         raise RuntimeError("No image in OpenAI response")
@@ -552,11 +540,7 @@ def _extract_openai_image_bytes(response) -> bytes:
 
 
 async def _generate_image(prompt: str, reference_png: bytes | None = None) -> bytes:
-    provider_config = (
-        f"openai:{OPENAI_IMAGE_MODEL}:{OPENAI_IMAGE_QUALITY}:{OPENAI_IMAGE_SIZE}"
-        if IMAGE_PROVIDER == "openai"
-        else f"gemini:{GEMINI_IMAGE_MODEL}"
-    )
+    provider_config = f"openai:{OPENAI_IMAGE_MODEL}:{OPENAI_IMAGE_QUALITY}:{OPENAI_IMAGE_SIZE}"
     cache_key = f"{provider_config}|{prompt}" + (
         f"|ref:{hashlib.sha256(reference_png).hexdigest()[:16]}" if reference_png else ""
     )
@@ -564,7 +548,7 @@ async def _generate_image(prompt: str, reference_png: bytes | None = None) -> by
     if cached:
         return cached
 
-    async def call_openai() -> bytes:
+    async def call() -> bytes:
         if reference_png is None:
             response = await openai_client.images.generate(
                 model=OPENAI_IMAGE_MODEL,
@@ -584,21 +568,7 @@ async def _generate_image(prompt: str, reference_png: bytes | None = None) -> by
             )
         return _extract_openai_image_bytes(response)
 
-    async def call_gemini() -> bytes:
-        if gemini_client is None:
-            raise RuntimeError("GEMINI_API_KEY is required when IMAGE_PROVIDER=gemini")
-        contents: list = []
-        if reference_png is not None:
-            contents.append(genai_types.Part.from_bytes(data=reference_png, mime_type="image/png"))
-        contents.append(prompt)
-        response = await gemini_client.aio.models.generate_content(
-            model=GEMINI_IMAGE_MODEL,
-            contents=contents if reference_png is not None else prompt,
-            config=genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"]),
-        )
-        return _extract_gemini_image_bytes(response)
-
-    data = await _with_retry(call_openai if IMAGE_PROVIDER == "openai" else call_gemini)
+    data = await _with_retry(call)
     cache_set_bytes("images", cache_key, data)
     return data
 

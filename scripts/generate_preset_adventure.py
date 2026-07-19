@@ -9,7 +9,7 @@ import shutil
 from pathlib import Path
 
 from server.ai import generate_reunion_photo
-from server.config import ASSETS_DIR, IMAGE_PROVIDER
+from server.config import ASSETS_DIR, OPENAI_IMAGE_MODEL
 from server.gamestore import snapshot_game
 from server.pipeline import run_pipeline
 from server.storage import save_asset
@@ -21,7 +21,7 @@ PRESET_GAMES_DIR = ROOT / "preset-assets" / "games"
 
 async def generate(idea: str) -> str:
     game = await run_pipeline(idea)
-    print(f"Started {game.id} with IMAGE_PROVIDER={IMAGE_PROVIDER}", flush=True)
+    print(f"Started {game.id} with OPENAI_IMAGE_MODEL={OPENAI_IMAGE_MODEL}", flush=True)
 
     while True:
         await asyncio.sleep(2)

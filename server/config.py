@@ -5,16 +5,8 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env.local")
 
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 TEXT_MODEL = os.getenv("TEXT_MODEL", "gpt-5.4-mini-2026-03-17")
 NPC_MODEL = os.getenv("NPC_MODEL", "gpt-5.6-luna")
-IMAGE_PROVIDER = os.getenv("IMAGE_PROVIDER", "openai").strip().lower()
-if IMAGE_PROVIDER not in {"gemini", "openai"}:
-    raise ValueError("IMAGE_PROVIDER must be 'gemini' or 'openai'")
-GEMINI_IMAGE_MODEL = os.getenv(
-    "GEMINI_IMAGE_MODEL",
-    os.getenv("IMAGE_MODEL", "gemini-2.5-flash-image"),
-)
 OPENAI_IMAGE_MODEL = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2")
 OPENAI_IMAGE_QUALITY = os.getenv("OPENAI_IMAGE_QUALITY", "medium")
 OPENAI_IMAGE_SIZE = os.getenv("OPENAI_IMAGE_SIZE", "1024x1024")

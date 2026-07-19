@@ -6,7 +6,7 @@ from PIL import Image
 
 from server.schema import ScreenAnnotation, GameBible
 
-# World is 1024x1024 (Gemini's native square output), 16x16 grid of 64px cells.
+# World is 1024x1024, represented as a 16x16 grid of 64px cells.
 COLS, ROWS = 16, 16
 CELL = 64
 
