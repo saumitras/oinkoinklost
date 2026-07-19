@@ -12,18 +12,42 @@ export function ReunionScene({ game, onNewAdventure, accomplishments = [] }: Pro
   const [photoUrl, setPhotoUrl] = useState(game.assets.reunionPhotoUrl)
   const [shareStatus, setShareStatus] = useState('')
 
-  // Poll for reunion photo if not ready yet
+  // Ensure every completion path starts the reunion image, including the
+  // shortcut that auto-collects clues, then poll until the asset is ready.
   useEffect(() => {
     if (photoUrl) return
-    const interval = setInterval(async () => {
-      const res = await fetch(`/api/game/${game.id}`)
-      const updated: Game = await res.json()
-      if (updated.assets.reunionPhotoUrl) {
-        setPhotoUrl(updated.assets.reunionPhotoUrl)
-        clearInterval(interval)
+    let cancelled = false
+
+    async function ensurePhoto() {
+      try {
+        await fetch(`/api/game/${game.id}/reunion`, { method: 'POST' })
+      } catch {
+        // The recurring ensure call retries transient network or generation failures.
       }
-    }, 2000)
-    return () => clearInterval(interval)
+    }
+
+    async function checkPhoto() {
+      try {
+        const res = await fetch(`/api/game/${game.id}`)
+        if (!res.ok) return
+        const updated: Game = await res.json()
+        if (!cancelled && updated.assets.reunionPhotoUrl) {
+          setPhotoUrl(updated.assets.reunionPhotoUrl)
+        }
+      } catch {
+        // Keep polling; a brief connection failure should not strand the finale.
+      }
+    }
+
+    ensurePhoto()
+    checkPhoto()
+    const pollInterval = window.setInterval(checkPhoto, 2000)
+    const ensureInterval = window.setInterval(ensurePhoto, 15000)
+    return () => {
+      cancelled = true
+      window.clearInterval(pollInterval)
+      window.clearInterval(ensureInterval)
+    }
   }, [game.id, photoUrl])
 
   // Play reunion audio

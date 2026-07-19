@@ -23,7 +23,7 @@ from server.ai import (
     generate_npc_reply, generate_tts, npc_tts_profile, transcribe_audio,
     PIGLET_TTS_INSTRUCTIONS, PIGLET_TTS_SPEED, PIGLET_VOICE,
 )
-from server.schema import NPCModelReply, PreloadedNPCReply, SuggestedReply
+from server.schema import Game, NPCModelReply, PreloadedNPCReply, SuggestedReply
 from server.storage import save_asset
 from server.adventure_library import (
     is_library_ready, list_adventures, lookup_adventures, valid_game_id,
@@ -73,6 +73,7 @@ class AdventureLookupBody(BaseModel):
 # Short-lived dev-mode memory. A session is stable while the current adventure
 # remains mounted, including when the player leaves and revisits an NPC.
 _npc_sessions: dict[str, dict] = {}
+_reunion_jobs: set[str] = set()
 
 PRESET_WORLDS = {
     "pumpkin-farm": {
@@ -530,6 +531,38 @@ async def npc_chat(game_id: str, npc_id: str, body: NPCChatBody):
     }
 
 
+def ensure_reunion_photo(game: Game) -> str:
+    if game.assets.reunionPhotoUrl:
+        return "ready"
+    if game.id in _reunion_jobs:
+        return "generating"
+
+    _reunion_jobs.add(game.id)
+
+    async def gen_reunion():
+        try:
+            data = await generate_reunion_photo(game.bible, game.cozyVisuals)
+            url = save_asset(f"games/{game.id}/reunion.png", data)
+            game.assets.reunionPhotoUrl = url
+            set_game(game)
+            snapshot_game(game)
+        except Exception as e:
+            print(f"[reunion:{game.id}] {e}")
+        finally:
+            _reunion_jobs.discard(game.id)
+
+    spawn_task(gen_reunion())
+    return "generating"
+
+
+@app.post("/api/game/{game_id}/reunion", status_code=202)
+async def start_reunion(game_id: str):
+    game = get_or_load_game(game_id)
+    if not game or not game.bible:
+        raise HTTPException(status_code=404)
+    return {"status": ensure_reunion_photo(game)}
+
+
 @app.post("/api/game/{game_id}/solve")
 async def solve(game_id: str, body: SolveBody):
     game = get_or_load_game(game_id)
@@ -538,17 +571,8 @@ async def solve(game_id: str, body: SolveBody):
 
     correct = body.locationId == game.bible.finalLocationId
 
-    if correct and not game.assets.reunionPhotoUrl:
-        async def gen_reunion():
-            try:
-                data = await generate_reunion_photo(game.bible, game.cozyVisuals)  # type: ignore
-                url = save_asset(f"games/{game.id}/reunion.png", data)
-                game.assets.reunionPhotoUrl = url
-                set_game(game)
-                snapshot_game(game)
-            except Exception as e:
-                print(f"[reunion:{game.id}] {e}")
-        spawn_task(gen_reunion())
+    if correct:
+        ensure_reunion_photo(game)
 
     if not correct:
         chosen = next((l for l in game.bible.candidateLocations if l.id == body.locationId), None)
