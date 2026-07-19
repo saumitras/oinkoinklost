@@ -188,13 +188,10 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
       if (building.isEnterable) {
         const room = currentGame.assets.rooms[building.id]
         if (!room?.imageUrl || !room.annotation) {
-          // A delayed/failed generated room must never block a required clue.
-          // Let its neighbor step outside and deliver the same dialogue.
-          if (building.npcId) {
-            openNpcDialogue(building.npcId)
-            return
-          }
-          showToast('🎨 Still painting inside! Try again in a moment…')
+          const roomStage = currentGame.stages[`room_${building.id}`]
+          showToast(roomStage === 'failed'
+            ? '⚠️ This room could not finish painting. Try another house or start a new adventure.'
+            : '🎨 Still painting inside! Try Go Inside again in a moment…', 5000)
           return
         }
         s.setScreen(`room_${building.id}`)
@@ -383,6 +380,24 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
   }
 
   const isLookAction = store.nearby?.kind === 'door' && !store.nearby.enterable
+  const nearbyDoor = store.nearby?.kind === 'door' ? store.nearby : undefined
+  const nearbyBuilding = nearbyDoor
+    ? currentGame.bible?.buildings.find(building => building.id === nearbyDoor.buildingId)
+    : undefined
+  const nearbyRoom = nearbyBuilding?.isEnterable
+    ? currentGame.assets.rooms[nearbyBuilding.id]
+    : undefined
+  const nearbyRoomStage = nearbyBuilding?.isEnterable
+    ? currentGame.stages[`room_${nearbyBuilding.id}`]
+    : undefined
+  const roomIsPreparing = Boolean(
+    nearbyBuilding?.isEnterable && (!nearbyRoom?.imageUrl || !nearbyRoom.annotation),
+  )
+  const actionLabel = roomIsPreparing
+    ? nearbyRoomStage === 'failed'
+      ? '⚠️ Room unavailable'
+      : '🎨 Painting room…'
+    : store.nearby?.label
   const curatedWorld = isCuratedAdventure(currentGame)
   const adventureTheme = curatedAdventure(currentGame)
 
@@ -517,7 +532,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
       {/* Contextual action button — the single interact affordance */}
       {store.nearby && !dialogue && !store.showPicker && !store.showReunion && !showIntro && (
         <button className="game-action-button" style={{ ...styles.actionBtn, ...(isLookAction ? styles.lookActionBtn : {}) }} onClick={handleInteract}>
-          {store.nearby.label}
+          {actionLabel}
         </button>
       )}
 

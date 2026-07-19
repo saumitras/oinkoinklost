@@ -85,11 +85,14 @@ async def _execute(game: Game) -> None:
         _set_stage(game, "bible", "done", {"title": bible.title})
         snapshot_game(game)
 
-        # Stages 2-4 (critical path) + 5 (parallel)
+        # A generated world is playable only when its hub, character, NPC
+        # openers, and room interiors are ready. Opening the hub earlier lets
+        # players reach a door before its room scene exists.
         await asyncio.gather(
             _run_street_chain(game),
             _run_character(game),
             _run_npc_openers(game),
+            _run_rooms(game),
         )
 
         if game.assets.streetUrl and game.annotation and game.assets.characterFrontUrl:
@@ -98,12 +101,8 @@ async def _execute(game: Game) -> None:
             set_game(game)
             snapshot_game(game)
 
-        # Background: rooms + TTS
-        await asyncio.gather(
-            _run_rooms(game),
-            _run_tts(game),
-            return_exceptions=True,
-        )
+        # Narration is non-critical and may finish after play begins.
+        await asyncio.gather(_run_tts(game), return_exceptions=True)
 
         emit(game.id, {"type": "done"})
         set_game(game)
