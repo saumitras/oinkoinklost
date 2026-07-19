@@ -35,10 +35,11 @@ import {
 
 interface Props {
   game: Game
+  microQuestsEnabled: boolean
   onNewAdventure: () => void
 }
 
-export function GameCanvas({ game, onNewAdventure }: Props) {
+export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const store = useGameStore()
   const [dialogue, setDialogue] = useState<{ npcId: string; sessionId: string } | null>(null)
@@ -115,6 +116,7 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
   // A small deterministic story director: if a search stalls, Piglet gently
   // restates the visual goal without spending another model call.
   useEffect(() => {
+    if (!microQuestsEnabled) return
     if (!store.screen.startsWith('room_')) return
     const activeRoomId = store.screen.slice(5)
     const current = useGameStore.getState().game ?? game
@@ -127,7 +129,7 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
       speakText(reminder)
     }, 11000)
     return () => window.clearTimeout(timer)
-  }, [store.screen, questProgress, game]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [store.screen, questProgress, game, microQuestsEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleInteract = useCallback(() => {
     const s = useGameStore.getState()
@@ -193,7 +195,7 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
         }
         s.setScreen(`room_${building.id}`)
         loadRoomScene(currentGame, building.id).then(() => {
-          const quest = pumpkinQuestForRoom(currentGame, building.id)
+          const quest = microQuestsEnabled ? pumpkinQuestForRoom(currentGame, building.id) : undefined
           if (quest && questProgress[quest.npcId] === 'searching') {
             setRoomQuestObjects(quest.objects)
           } else if (quest && questProgress[quest.npcId] === 'completed') {
@@ -224,7 +226,7 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
     if (nearby.kind === 'exit') {
       returnToStreet()
     }
-  }, [dialogue, game, questProgress, questMistakes]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dialogue, game, questProgress, questMistakes, microQuestsEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keyboard: E/Space/Enter to interact, Escape to leave room
   useEffect(() => {
@@ -350,6 +352,7 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
   }
 
   function interceptMamaQuestion(npcId: string, hintId: string): boolean {
+    if (!microQuestsEnabled) return false
     if (store.collectedHintIds.includes(hintId)) return false
     const quest = pumpkinQuestForNpc(currentGame, npcId)
     if (!quest || questProgress[npcId] === 'completed') return false
@@ -494,6 +497,7 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
           onClueGranted={onConversationClue}
           onClose={onDialogueClose}
           onAskMama={() => interceptMamaQuestion(activeNpc.id, activeHint.id)}
+          speakPlayerChoices={!pumpkinWorld}
         />
       )}
 
@@ -524,7 +528,7 @@ export function GameCanvas({ game, onNewAdventure }: Props) {
         />
       )}
 
-      {showIntro && <IntroOverlay game={currentGame} onBegin={() => {
+      {showIntro && <IntroOverlay game={currentGame} microQuestsEnabled={microQuestsEnabled} onBegin={() => {
         setShowIntro(false)
         if (isTouch) showToast('👆 Tap anywhere to walk, or use the arrow pad. Tap the action button when it appears!', 7200)
       }} />}

@@ -96,11 +96,26 @@
         "appearance": "A kind cow with a cream spot on her nose and a blue ribbon.",
         "personality": "Gentle and chatty.",
         "roomPosition": "left",
-        "ttsVoice": "alloy",
+        "ttsVoice": "cedar",
         "lines": {
-          "greeting": "Hello, tiny friend. I can share a clue.",
-          "hint": "I am sure Mama did not stop at Pumpkin Market Stall.",
-          "idle": "I like to chew hay and think."
+          "greeting": "Moo\u2026 hello, little one. You look like you're searching for someone.",
+          "hint": "Moo\u2026 Mama didn't stop at Pumpkin Market Stall. I'm sure of that.",
+          "idle": "Hmm\u2026 I do my best thinking over a nice bundle of hay."
+        },
+        "conversation": {
+          "speechStyle": "relaxed, thoughtful, gently funny, and conversational",
+          "favoriteTopic": "the sweet-smelling hay in the barn",
+          "smallTalkFacts": [
+            "The softest hay is stacked beside the blue fork.",
+            "Mabel likes the quiet creak of the barn in the afternoon."
+          ],
+          "openingChoices": [
+            "Have you seen my Mama?",
+            "Tell me about the hay.",
+            "What do you like about the barn?"
+          ],
+          "clueLeadIn": "Hmm\u2026 this may help.",
+          "animalSound": "Moo"
         }
       },
       {
@@ -110,11 +125,26 @@
         "appearance": "A small goat with curled horns and a yellow apron.",
         "personality": "Playful and helpful.",
         "roomPosition": "center",
-        "ttsVoice": "echo",
+        "ttsVoice": "marin",
         "lines": {
-          "greeting": "Hiya, Piglet. I saw something helpful.",
-          "hint": "I am sure Mama did not stop at Apple Orchard Shed.",
-          "idle": "I nibble and sort the crates."
+          "greeting": "Baa\u2014hello, Piglet! You've arrived just as I was sorting the best pumpkins.",
+          "hint": "Baa\u2014Mama didn't stop at Apple Orchard Shed. I'm sure of that.",
+          "idle": "I always sort the roundest pumpkins first\u2026 unless I get hungry."
+        },
+        "conversation": {
+          "speechStyle": "lively, curious, lightly mischievous, and natural",
+          "favoriteTopic": "the market's pumpkins and pies",
+          "smallTalkFacts": [
+            "Tilly sorts pumpkins by how nicely they roll.",
+            "There is one very special pie on the highest shelf."
+          ],
+          "openingChoices": [
+            "Have you seen my Mama?",
+            "Tell me about the pumpkins.",
+            "Which pie smells best?"
+          ],
+          "clueLeadIn": "Oh! I did spot something useful.",
+          "animalSound": "Baa"
         }
       },
       {
@@ -124,11 +154,26 @@
         "appearance": "A plump duck with an orange bow and bright boots.",
         "personality": "Cheery and observant.",
         "roomPosition": "right",
-        "ttsVoice": "fable",
+        "ttsVoice": "coral",
         "lines": {
-          "greeting": "Quack hello. I noticed a clue.",
-          "hint": "I am sure Mama did not stop at Pumpkin Patch Row.",
-          "idle": "I love tidy corners and crunchy leaves."
+          "greeting": "Quack-quack! Hello, Piglet. I notice nearly everything that rolls through this orchard.",
+          "hint": "Quack! Mama didn't stop at Pumpkin Patch Row. I'm sure of that.",
+          "idle": "I like tidy baskets, crunchy leaves\u2026 and apples that stay where I put them."
+        },
+        "conversation": {
+          "speechStyle": "bright, observant, quick-witted, and conversational",
+          "favoriteTopic": "the orchard's runaway apples",
+          "smallTalkFacts": [
+            "Dottie lines up the apples until one inevitably rolls away.",
+            "The crunchiest leaves collect near the orchard doorway."
+          ],
+          "openingChoices": [
+            "Have you seen my Mama?",
+            "Tell me about the apples.",
+            "What did you notice today?"
+          ],
+          "clueLeadIn": "Quack! Here's what I noticed.",
+          "animalSound": "Quack"
         }
       }
     ],
@@ -137,7 +182,7 @@
         "id": "h1",
         "npcId": "cow",
         "kind": "attribute",
-        "text": "I am sure Mama did not stop at Pumpkin Market Stall.",
+        "text": "Moo\u2026 Mama didn't stop at Pumpkin Market Stall. I'm sure of that.",
         "eliminatesLocationIds": [
           "market"
         ]
@@ -146,7 +191,7 @@
         "id": "h2",
         "npcId": "goat",
         "kind": "direction",
-        "text": "I am sure Mama did not stop at Apple Orchard Shed.",
+        "text": "Baa\u2014Mama didn't stop at Apple Orchard Shed. I'm sure of that.",
         "eliminatesLocationIds": [
           "orchard"
         ]
@@ -155,7 +200,7 @@
         "id": "h3",
         "npcId": "duck",
         "kind": "object",
-        "text": "I am sure Mama did not stop at Pumpkin Patch Row.",
+        "text": "Quack! Mama didn't stop at Pumpkin Patch Row. I'm sure of that.",
         "eliminatesLocationIds": [
           "pumpkinPatch"
         ]
@@ -265,21 +310,83 @@
       }
     },
     "audio": {
-      "npc_duck.greeting": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/npc_duck.greeting.mp3",
+      "npc_duck.greeting": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/opener_duck_4a8df24ef362c47d.mp3",
       "npc_cow.idle": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/npc_cow.idle.mp3",
       "npc_duck.idle": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/npc_duck.idle.mp3",
-      "npc_cow.greeting": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/npc_cow.greeting.mp3",
+      "npc_cow.greeting": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/opener_cow_645ab680f08dd824.mp3",
       "npc_goat.idle": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/npc_goat.idle.mp3",
       "narrator.intro": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/narrator.intro.mp3",
       "npc_duck.hint": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/npc_duck.hint.mp3",
       "npc_cow.hint": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/npc_cow.hint.mp3",
-      "npc_goat.greeting": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/npc_goat.greeting.mp3",
+      "npc_goat.greeting": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/opener_goat_d1554233310d2660.mp3",
       "narrator.allHints": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/narrator.allHints.mp3",
       "npc_goat.hint": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/npc_goat.hint.mp3",
       "narrator.reunion": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/narrator.reunion.mp3",
       "building_cornCrib.look": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/building_cornCrib.look.wav",
       "building_pumpkinPatch.look": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/building_pumpkinPatch.look.wav",
       "building_hayLoft.look": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/building_hayLoft.look.wav"
+    },
+    "npcOpeners": {
+      "cow": {
+        "reply": "Moo\u2026 hello, little one. You look like you're searching for someone.",
+        "suggestedReplies": [
+          {
+            "text": "Have you seen my Mama?",
+            "intent": "ask_mama"
+          },
+          {
+            "text": "Tell me about the hay.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "What do you like about the barn?",
+            "intent": "small_talk"
+          }
+        ],
+        "mood": "cheerful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/opener_cow_645ab680f08dd824.mp3"
+      },
+      "goat": {
+        "reply": "Baa\u2014hello, Piglet! You've arrived just as I was sorting the best pumpkins.",
+        "suggestedReplies": [
+          {
+            "text": "Have you seen my Mama?",
+            "intent": "ask_mama"
+          },
+          {
+            "text": "Tell me about the pumpkins.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "Which pie smells best?",
+            "intent": "small_talk"
+          }
+        ],
+        "mood": "cheerful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/opener_goat_d1554233310d2660.mp3"
+      },
+      "duck": {
+        "reply": "Quack-quack! Hello, Piglet. I notice nearly everything that rolls through this orchard.",
+        "suggestedReplies": [
+          {
+            "text": "Have you seen my Mama?",
+            "intent": "ask_mama"
+          },
+          {
+            "text": "Tell me about the apples.",
+            "intent": "small_talk"
+          },
+          {
+            "text": "What did you notice today?",
+            "intent": "small_talk"
+          }
+        ],
+        "mood": "cheerful",
+        "conversationComplete": false,
+        "audioUrl": "/assets/games/76VwFrCWC21dOuUiBJWhA/audio/opener_duck_4a8df24ef362c47d.mp3"
+      }
     },
     "reunionPhotoUrl": "/assets/games/76VwFrCWC21dOuUiBJWhA/reunion.png"
   },

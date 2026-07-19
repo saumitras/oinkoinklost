@@ -3,7 +3,7 @@ import { unlockAudio } from '../game/audio'
 import { useGameStore } from '../game/store'
 
 interface Props {
-  onStart: (gameId: string) => void
+  onStart: (gameId: string, options: { microQuestsEnabled: boolean }) => void
 }
 
 interface PresetWorld {
@@ -17,6 +17,7 @@ interface PresetWorld {
 export function TitleScreen({ onStart }: Props) {
   const [idea, setIdea] = useState('')
   const [cozyVisuals, setCozyVisuals] = useState(false)
+  const [microQuestsEnabled, setMicroQuestsEnabled] = useState(false)
   const [presets, setPresets] = useState<PresetWorld[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingPreset, setLoadingPreset] = useState<string | null>(null)
@@ -59,7 +60,7 @@ export function TitleScreen({ onStart }: Props) {
         }
         return
       }
-      onStart(data.gameId)
+      onStart(data.gameId, { microQuestsEnabled })
     } catch {
       setError('Could not connect to the server.')
     } finally {
@@ -75,7 +76,7 @@ export function TitleScreen({ onStart }: Props) {
       const res = await fetch(`/api/presets/${preset.slug}`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error('Preset unavailable')
-      onStart(data.gameId)
+      onStart(data.gameId, { microQuestsEnabled })
     } catch {
       setError(`${preset.title} is unavailable right now. Try another world!`)
     } finally {
@@ -102,6 +103,25 @@ export function TitleScreen({ onStart }: Props) {
         </div>
 
         <div style={styles.label}>Where should the adventure happen?</div>
+        <label className="title-quest-option" style={{
+          ...styles.questOption,
+          ...(microQuestsEnabled ? styles.questOptionEnabled : {}),
+        }}>
+          <input
+            type="checkbox"
+            checked={microQuestsEnabled}
+            onChange={event => setMicroQuestsEnabled(event.target.checked)}
+            disabled={busy}
+            style={styles.checkbox}
+          />
+          <span style={styles.questOptionCopy}>
+            <strong>Little helper quests</strong>
+            <small style={styles.optionHelp}>Help each neighbor with a tiny search before they share their clue</small>
+          </span>
+          <span style={{ ...styles.questStatus, ...(microQuestsEnabled ? styles.questStatusOn : {}) }}>
+            {microQuestsEnabled ? 'On' : 'Off'}
+          </span>
+        </label>
         <div className="title-preset-grid" style={styles.presetGrid}>
           {presets.map(preset => (
             <button
@@ -182,6 +202,19 @@ const styles: Record<string, React.CSSProperties> = {
   title: { fontSize: 34, fontWeight: 900, color: '#e07b54', margin: 0 },
   subtitle: { fontSize: 12, lineHeight: 1.35, color: '#8a776c', margin: '4px 0 0', whiteSpace: 'nowrap' },
   label: { color: '#5e4335', fontSize: 16, fontWeight: 900, marginBottom: 12, textAlign: 'center' },
+  questOption: {
+    display: 'flex', alignItems: 'center', gap: 10, maxWidth: 440, margin: '0 auto 14px',
+    padding: '10px 12px', border: '1.5px solid #ead8cc', borderRadius: 14,
+    background: '#fffaf7', color: '#6f5748', fontSize: 12, lineHeight: 1.25,
+    cursor: 'pointer', userSelect: 'none', transition: 'border-color 160ms ease, background 160ms ease',
+  },
+  questOptionEnabled: { borderColor: '#e2a24d', background: '#fff5df' },
+  questOptionCopy: { display: 'block', flex: 1 },
+  questStatus: {
+    minWidth: 36, padding: '4px 7px', borderRadius: 999, background: '#eee7e2',
+    color: '#88736a', fontSize: 10, fontWeight: 900, textAlign: 'center',
+  },
+  questStatusOn: { background: '#e2a24d', color: '#fff' },
   presetGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 13 },
   presetCard: {
     position: 'relative', height: 210, padding: 0, border: '3px solid white', borderRadius: 18,

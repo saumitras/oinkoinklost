@@ -15,7 +15,8 @@ from server.ai import (
     generate_bible, generate_street_scene, generate_outline_pass,
     extract_hotspots, generate_character_sprites, generate_room_image,
     extract_room_annotation, generate_tts,
-    build_npc_opener, npc_voice, NARRATOR_VOICE,
+    build_npc_opener, npc_voice, npc_tts_profile,
+    DEFAULT_TTS_INSTRUCTIONS, NARRATOR_VOICE,
 )
 
 CANNED_IDEAS = ["a pumpkin farm in autumn", "a tiny seaside village", "a dinosaur birthday party"]
@@ -174,8 +175,9 @@ async def _run_npc_openers(game: Game) -> None:
         turn = build_npc_opener(npc, bible)
         audio_url = None
         try:
-            data = await generate_tts(turn.reply, npc.ttsVoice or "alloy")
-            digest = hashlib.sha256(f"{npc.id}:{turn.reply}".encode()).hexdigest()[:16]
+            voice, instructions = npc_tts_profile(npc, bible)
+            data = await generate_tts(turn.reply, voice, instructions)
+            digest = hashlib.sha256(f"{npc.id}:{voice}:{instructions}:{turn.reply}".encode()).hexdigest()[:16]
             audio_url = save_asset(f"games/{game.id}/audio/opener_{digest}.mp3", data)
         except Exception as e:
             print(f"[npc-opener-tts:{game.id}:{npc.id}] {e}")
@@ -230,10 +232,10 @@ async def _run_tts(game: Game) -> None:
         ("narrator.reunion", bible.reunionLine, NARRATOR_VOICE),
     ]
     for i, npc in enumerate(bible.npcs):
-        voice = npc.ttsVoice or npc_voice(i)
+        voice, instructions = npc_tts_profile(npc, bible)
         lines += [
-            (f"npc_{npc.id}.hint", npc.lines.hint, voice),
-            (f"npc_{npc.id}.idle", npc.lines.idle, voice),
+            (f"npc_{npc.id}.hint", npc.lines.hint, voice, instructions),
+            (f"npc_{npc.id}.idle", npc.lines.idle, voice, instructions),
         ]
     for building in bible.buildings:
         if not building.isEnterable:
@@ -241,18 +243,26 @@ async def _run_tts(game: Game) -> None:
                 f"building_{building.id}.look",
                 f"{building.name}. {building.exteriorDescription} Mama is not here.",
                 NARRATOR_VOICE,
+                DEFAULT_TTS_INSTRUCTIONS,
             ))
 
-    async def do_tts(key, text, voice):
+    # Narrator entries use the shared natural direction; NPC entries carry a
+    # character-specific performance direction.
+    normalized_lines = [
+        (*line, DEFAULT_TTS_INSTRUCTIONS) if len(line) == 3 else line
+        for line in lines
+    ]
+
+    async def do_tts(key, text, voice, instructions):
         try:
-            data = await generate_tts(text, voice)
+            data = await generate_tts(text, voice, instructions)
             url = save_asset(f"games/{game.id}/audio/{key}.mp3", data)
             game.assets.audio[key] = url
             set_game(game)
         except Exception as e:
             print(f"[tts:{game.id}] {key} failed: {e}")
 
-    await asyncio.gather(*[do_tts(k, t, v) for k, t, v in lines])
+    await asyncio.gather(*[do_tts(k, t, v, instructions) for k, t, v, instructions in normalized_lines])
     _set_stage(game, "tts", "done")
     snapshot_game(game)
 

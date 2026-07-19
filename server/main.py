@@ -18,7 +18,7 @@ from server.gamestore import get_or_load_game, set_game, snapshot_game
 from server.events import subscribe, unsubscribe, emit
 from server.ai import (
     build_npc_opener, moderate_idea, generate_reunion_photo,
-    generate_npc_reply, generate_tts, transcribe_audio,
+    generate_npc_reply, generate_tts, npc_tts_profile, transcribe_audio,
 )
 from server.schema import NPCModelReply, PreloadedNPCReply, SuggestedReply
 from server.storage import save_asset
@@ -100,11 +100,11 @@ def apply_pumpkin_mystery_variant(game) -> None:
     game.bible.finalLocationId = final.id
     game.bible.finalLocationBuildingId = final.id
     alternatives = [candidate for candidate in candidates if candidate.id != final.id]
-    sounds = {"cow": "Moo", "goat": "Baa", "duck": "Quack"}
+    clue_openers = {"cow": "Moo… ", "goat": "Baa—", "duck": "Quack! "}
     random.shuffle(alternatives)
     for hint, eliminated in zip(game.bible.hints, alternatives):
-        sound = sounds.get(hint.npcId, "Hmm")
-        hint.text = f"{sound}! I am sure Mama did not stop at {eliminated.name}."
+        opener = clue_openers.get(hint.npcId, "Hmm… ")
+        hint.text = f"{opener}Mama didn't stop at {eliminated.name}. I'm sure of that."
         hint.eliminatesLocationIds = [eliminated.id]
         # The shipped clip describes the template's original mystery. Dynamic
         # dialogue speaks this playthrough's variant; replay falls back to the
@@ -328,9 +328,16 @@ async def npc_chat(game_id: str, npc_id: str, body: NPCChatBody):
     audio_url = preloaded.audioUrl if use_preloaded and preloaded else None
     if not use_preloaded:
         try:
-            audio = await generate_tts(turn.reply, npc.ttsVoice or "alloy")
-            digest = hashlib.sha256(f"{npc_id}:{turn.reply}".encode()).hexdigest()[:16]
+            voice, instructions = npc_tts_profile(npc, game.bible)
+            audio = await generate_tts(turn.reply, voice, instructions)
+            digest = hashlib.sha256(f"{npc_id}:{voice}:{instructions}:{turn.reply}".encode()).hexdigest()[:16]
             audio_url = save_asset(f"games/{game.id}/audio/chat_{digest}.mp3", audio)
+            if should_grant:
+                # Keep the exact generated clue performance available to the
+                # clue panel instead of falling back to the browser's voice.
+                game.assets.audio[f"npc_{npc_id}.hint"] = audio_url
+                set_game(game)
+                snapshot_game(game)
         except Exception as e:
             print(f"[npc-chat-tts:{game_id}:{npc_id}] {e}")
 

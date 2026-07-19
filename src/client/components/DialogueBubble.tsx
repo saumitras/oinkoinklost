@@ -11,6 +11,7 @@ interface Props {
   onClueGranted: (hintId: string) => void
   onClose: () => void
   onAskMama?: () => boolean
+  speakPlayerChoices?: boolean
 }
 
 interface ChatLine {
@@ -35,6 +36,7 @@ export function DialogueBubble({
   onClueGranted,
   onClose,
   onAskMama,
+  speakPlayerChoices = true,
 }: Props) {
   const [history, setHistory] = useState<ChatLine[]>(preloadedOpener
     ? [{ speaker: npc.name, text: preloadedOpener.reply }]
@@ -177,7 +179,7 @@ export function DialogueBubble({
           if (!transcript) throw new Error('I could not hear any words. Try once more.')
           stopAudio()
           if (/\b(mama|mother|help.*find|seen her)\b/i.test(transcript) && onAskMama?.()) {
-            speakText(transcript).finally(onClose)
+            onClose()
           } else {
             requestTurn(transcript, 'typed')
           }
@@ -212,7 +214,7 @@ export function DialogueBubble({
     }
     if (suggestion.intent === 'ask_mama' && onAskMama) {
       stopAudio()
-      const playerSpeech = speakText(suggestion.text)
+      const playerSpeech = speakPlayerChoices ? speakText(suggestion.text) : Promise.resolve()
       playerSpeech.then(() => {
         if (onAskMama()) onClose()
         else requestTurn(suggestion.text, 'suggestion', suggestion.intent)
@@ -220,7 +222,7 @@ export function DialogueBubble({
       return
     }
     stopAudio()
-    const playerSpeech = speakText(suggestion.text)
+    const playerSpeech = speakPlayerChoices ? speakText(suggestion.text) : Promise.resolve()
     requestTurn(suggestion.text, 'suggestion', suggestion.intent, playerSpeech)
   }
 
@@ -231,7 +233,8 @@ export function DialogueBubble({
     setInput('')
     if (/\b(mama|mother|help.*find|seen her)\b/i.test(message) && onAskMama?.()) {
       stopAudio()
-      speakText(message).finally(onClose)
+      if (speakPlayerChoices) speakText(message).finally(onClose)
+      else onClose()
       return
     }
     requestTurn(message, 'typed')

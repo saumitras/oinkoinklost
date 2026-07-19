@@ -10,9 +10,11 @@ export function App() {
   const [screen, setScreen] = useState<AppScreen>('title')
   const [gameId, setGameId] = useState<string | null>(null)
   const [game, setGame] = useState<Game | null>(null)
+  const [microQuestsEnabled, setMicroQuestsEnabled] = useState(false)
 
-  function onStart(id: string) {
+  function onStart(id: string, options: { microQuestsEnabled: boolean }) {
     setGameId(id)
+    setMicroQuestsEnabled(options.microQuestsEnabled)
     setScreen('loading')
   }
 
@@ -29,6 +31,12 @@ export function App() {
 
   if (screen === 'title') return <TitleScreen onStart={onStart} />
   if (screen === 'loading' && gameId) return <LoadingScreen gameId={gameId} onPlayable={onPlayable} />
-  if (screen === 'game' && game) return <GameCanvas game={game} onNewAdventure={onNewAdventure} />
+  if (screen === 'game' && game) return (
+    <GameCanvas
+      game={game}
+      microQuestsEnabled={microQuestsEnabled}
+      onNewAdventure={onNewAdventure}
+    />
+  )
   return null
 }

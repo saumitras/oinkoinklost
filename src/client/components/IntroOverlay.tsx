@@ -4,10 +4,11 @@ import { playAudio, stopAudio } from '../game/audio'
 
 interface Props {
   game: Game
+  microQuestsEnabled: boolean
   onBegin: () => void
 }
 
-export function IntroOverlay({ game, onBegin }: Props) {
+export function IntroOverlay({ game, microQuestsEnabled, onBegin }: Props) {
   const playedIntroUrl = useRef<string | null>(null)
   const introUrl = game.assets.audio['narrator.intro']
 
@@ -27,10 +28,13 @@ export function IntroOverlay({ game, onBegin }: Props) {
       <div className="intro-card" style={styles.card}>
         <div style={styles.eyebrow}>A NEW ADVENTURE</div>
         <h1 id="adventure-title" style={styles.title}>{game.bible?.title ?? 'Find Mama Pig!'}</h1>
+        <div style={{ ...styles.modeBadge, ...(microQuestsEnabled ? styles.modeBadgeQuests : {}) }}>
+          {microQuestsEnabled ? '✨ Helper quests on' : '💬 Story mode · direct clues'}
+        </div>
         <p style={styles.story}>{game.bible?.narratorIntro}</p>
         <div style={styles.mission}>
           <div><span style={styles.step}>1</span> Visit the three marked homes</div>
-          <div><span style={styles.step}>2</span> Listen to each neighbor's clue</div>
+          <div><span style={styles.step}>2</span> {microQuestsEnabled ? 'Help each neighbor, then hear their clue' : "Ask each neighbor if they've seen Mama"}</div>
           <div><span style={styles.step}>3</span> Work out where Mama went</div>
         </div>
         <button style={styles.button} onClick={begin}>🐷 Let's find Mama!</button>
@@ -53,6 +57,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   eyebrow: { fontSize: 12, letterSpacing: 2, fontWeight: 900, color: '#d9875c', marginBottom: 10 },
   title: { fontSize: 'clamp(25px, 7vw, 36px)', lineHeight: 1.12, color: '#d96f49', margin: '0 0 16px' },
+  modeBadge: {
+    display: 'inline-flex', padding: '6px 11px', margin: '0 auto 14px', borderRadius: 999,
+    background: '#eee8e3', color: '#725f55', fontSize: 11, fontWeight: 900,
+  },
+  modeBadgeQuests: { background: '#fff0c9', color: '#9a6418' },
   story: { fontSize: 'clamp(16px, 4vw, 19px)', lineHeight: 1.55, margin: '0 auto 22px', maxWidth: 450 },
   mission: {
     display: 'grid', gap: 10, textAlign: 'left', margin: '0 auto 24px', maxWidth: 390,

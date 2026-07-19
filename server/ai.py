@@ -36,9 +36,45 @@ THEME_STYLE_BASE = (
 NPC_VOICES = ["alloy", "echo", "fable"]
 NARRATOR_VOICE = "nova"
 
+DEFAULT_TTS_INSTRUCTIONS = (
+    "Speak warmly and clearly at a relaxed conversational pace. "
+    "Use natural intonation and avoid exaggerated baby talk."
+)
+
+PUMPKIN_NPC_VOICE_PROFILES: dict[str, tuple[str, str]] = {
+    "cow": (
+        "cedar",
+        "Speak as Mabel, a kind, slightly sleepy farm cow talking naturally to one small friend. "
+        "Use a warm low register, relaxed conversational pacing, gentle humor, and an audible smile. "
+        "Let thoughtful commas and ellipses breathe. Do not sound like a narrator, teacher, cartoon announcer, or baby-talk performer.",
+    ),
+    "goat": (
+        "marin",
+        "Speak as Tilly, a playful young farm goat who is genuinely pleased to see Piglet. "
+        "Use lively but believable conversational rhythm, light curiosity, and small changes in pace. "
+        "Keep the delivery intimate rather than theatrical. Do not use baby talk or an exaggerated cartoon voice.",
+    ),
+    "duck": (
+        "coral",
+        "Speak as Dottie, a bright, observant farm duck chatting with a friend. "
+        "Use crisp natural phrasing, cheerful confidence, and a quick playful lift on the animal sound, then settle into ordinary conversation. "
+        "Avoid sing-song narration, forced excitement, and baby talk.",
+    ),
+}
+
 
 def npc_voice(index: int) -> str:
     return NPC_VOICES[index % len(NPC_VOICES)]
+
+
+def is_pumpkin_bible(bible: GameBible | None) -> bool:
+    return bool(bible and {npc.id for npc in bible.npcs} == {"cow", "goat", "duck"})
+
+
+def npc_tts_profile(npc: NPC, bible: GameBible | None = None) -> tuple[str, str]:
+    if is_pumpkin_bible(bible) and npc.id in PUMPKIN_NPC_VOICE_PROFILES:
+        return PUMPKIN_NPC_VOICE_PROFILES[npc.id]
+    return npc.ttsVoice or "alloy", DEFAULT_TTS_INSTRUCTIONS
 
 
 ANIMAL_SOUNDS = {
@@ -252,6 +288,9 @@ Character:
 Conversation rules:
 - Reply in 1-2 short sentences, at most 34 words total.
 - Be warm, specific, playful, and conversational. Ask at most one question.
+- Write for speech, not for a page: use contractions, everyday wording, and punctuation that creates a natural cadence.
+- Vary sentence length. A small hesitation such as “Hmm…” is welcome when it fits, but never repeat a stock opener every turn.
+- Avoid formal phrases such as “I am sure,” “I did notice,” and “perhaps you should.”
 - Never invent another clue, Mama sighting, location fact, or game objective.
 - {clue_rule}
 - Return 2-3 very short suggested replies. Include an ask_mama option whenever the clue is not yet known.
@@ -573,8 +612,9 @@ Both pigs smiling, warm golden light. Cozy and sweet. No text."""
 
 # ── TTS ───────────────────────────────────────────────────────────────────────
 
-async def generate_tts(text: str, voice: str) -> bytes:
-    cached = cache_get_bytes("tts", f"{voice}:{text}")
+async def generate_tts(text: str, voice: str, instructions: str = DEFAULT_TTS_INSTRUCTIONS) -> bytes:
+    cache_key = f"{voice}:{instructions}:{text}"
+    cached = cache_get_bytes("tts", cache_key)
     if cached:
         return cached
 
@@ -583,13 +623,13 @@ async def generate_tts(text: str, voice: str) -> bytes:
             model=TTS_MODEL,
             voice=voice,  # type: ignore
             input=text,
-            instructions="Warm, slow, gentle storyteller voice for a young child. Cheerful.",
+            instructions=instructions,
             response_format="mp3",
         )
 
     response = await _with_retry(call)
     data = response.read()
-    cache_set_bytes("tts", f"{voice}:{text}", data)
+    cache_set_bytes("tts", cache_key, data)
     return data
 
 
