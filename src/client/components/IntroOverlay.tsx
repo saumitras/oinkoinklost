@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { Game } from '@shared/schema'
-import { playAudio, stopAudio } from '../game/audio'
+import { playAudio, playGameSpeech, speakText, stopAudio } from '../game/audio'
+import { useI18n } from '../i18n/context'
 
 interface Props {
   game: Game
@@ -9,14 +10,20 @@ interface Props {
 }
 
 export function IntroOverlay({ game, microQuestsEnabled, onBegin }: Props) {
+  const { languageCode, t } = useI18n()
   const playedIntroUrl = useRef<string | null>(null)
   const introUrl = game.assets.audio['narrator.intro']
 
   useEffect(() => {
-    if (!introUrl || playedIntroUrl.current === introUrl) return
-    playedIntroUrl.current = introUrl
-    playAudio(introUrl).catch(() => {})
-  }, [introUrl])
+    const key = introUrl || `${languageCode}:${game.bible?.narratorIntro ?? ''}`
+    if (!key || playedIntroUrl.current === key) return
+    playedIntroUrl.current = key
+    if (introUrl) playAudio(introUrl).catch(() => {})
+    else if (game.bible?.narratorIntro) {
+      playGameSpeech(game.id, game.bible.narratorIntro, languageCode)
+        .catch(() => speakText(game.bible?.narratorIntro ?? ''))
+    }
+  }, [game.id, game.bible?.narratorIntro, introUrl, languageCode])
 
   function begin() {
     stopAudio()
@@ -26,18 +33,18 @@ export function IntroOverlay({ game, microQuestsEnabled, onBegin }: Props) {
   return (
     <div className="intro-overlay" style={styles.overlay} role="dialog" aria-modal="true" aria-labelledby="adventure-title">
       <div className="intro-card" style={styles.card}>
-        <div style={styles.eyebrow}>A NEW ADVENTURE</div>
-        <h1 id="adventure-title" style={styles.title}>{game.bible?.title ?? 'Find Mama Pig!'}</h1>
+        <div style={styles.eyebrow}>{t('intro.eyebrow')}</div>
+        <h1 id="adventure-title" style={styles.title}>{game.bible?.title ?? t('intro.defaultTitle')}</h1>
         <div style={{ ...styles.modeBadge, ...(microQuestsEnabled ? styles.modeBadgeQuests : {}) }}>
-          {microQuestsEnabled ? '✨ Helper quests on' : '💬 Story mode · direct clues'}
+          {microQuestsEnabled ? `✨ ${t('intro.questsOn')}` : `💬 ${t('intro.storyMode')}`}
         </div>
         <p style={styles.story}>{game.bible?.narratorIntro}</p>
         <div style={styles.mission}>
-          <div><span style={styles.step}>1</span> Visit the three marked homes</div>
-          <div><span style={styles.step}>2</span> {microQuestsEnabled ? 'Help each neighbor, then hear their clue' : "Ask each neighbor if they've seen Mama"}</div>
-          <div><span style={styles.step}>3</span> Work out where Mama went</div>
+          <div><span style={styles.step}>1</span> {t('intro.step1')}</div>
+          <div><span style={styles.step}>2</span> {microQuestsEnabled ? t('intro.step2Quests') : t('intro.step2Story')}</div>
+          <div><span style={styles.step}>3</span> {t('intro.step3')}</div>
         </div>
-        <button style={styles.button} onClick={begin}>🐷 Let's find Mama!</button>
+        <button style={styles.button} onClick={begin}>🐷 {t('intro.begin')}</button>
       </div>
     </div>
   )

@@ -4,10 +4,12 @@ import { TitleScreen } from './components/TitleScreen'
 import { LoadingScreen } from './components/LoadingScreen'
 import { GameCanvas } from './components/GameCanvas'
 import { rememberAdventure } from './game/adventureHistory'
+import { useI18n } from './i18n/context'
 
 type AppScreen = 'title' | 'loading' | 'game'
 
 export function App() {
+  const { languageCode } = useI18n()
   const [screen, setScreen] = useState<AppScreen>('title')
   const [gameId, setGameId] = useState<string | null>(null)
   const [game, setGame] = useState<Game | null>(null)
@@ -19,7 +21,7 @@ export function App() {
     sharedAdventureHandled.current = true
     const adventureId = new URLSearchParams(window.location.search).get('adventure')
     if (!adventureId) return
-    fetch(`/api/adventures/${encodeURIComponent(adventureId)}/play`, { method: 'POST' })
+    fetch(`/api/adventures/${encodeURIComponent(adventureId)}/play?languageCode=${encodeURIComponent(languageCode)}`, { method: 'POST' })
       .then(async response => {
         const data = await response.json()
         if (!response.ok) throw new Error('Shared adventure unavailable')
@@ -31,7 +33,7 @@ export function App() {
         window.history.replaceState({}, '', window.location.pathname)
         setScreen('title')
       })
-  }, [])
+  }, [languageCode])
 
   function onStart(id: string, options: { microQuestsEnabled: boolean }) {
     setGameId(id)

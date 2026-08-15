@@ -6,3 +6,5 @@ python-dotenv==1.2.2
 nanoid==2.0.0
 pillow==12.3.0
 numpy==2.5.1
+httpx==0.28.1
+sarvamai==0.1.28

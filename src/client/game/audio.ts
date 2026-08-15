@@ -90,6 +90,23 @@ export async function playAudio(url: string): Promise<void> {
   })
 }
 
+export async function playGameSpeech(
+  gameId: string,
+  text: string,
+  languageCode: string,
+  role: 'narrator' | 'piglet' = 'narrator',
+): Promise<void> {
+  const response = await fetch(`/api/game/${gameId}/speech`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, languageCode, role }),
+  })
+  if (!response.ok) throw new Error(`Speech generation failed (${response.status})`)
+  const result: { audioUrl?: string } = await response.json()
+  if (!result.audioUrl) throw new Error('Speech audio was unavailable')
+  await playAudio(result.audioUrl)
+}
+
 export function stopAudio() {
   foregroundVersion += 1
   speechVersion += 1

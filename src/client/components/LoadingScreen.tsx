@@ -1,16 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Game, SSEEvent } from '@shared/schema'
-
-const STAGE_COPY: Record<string, string> = {
-  bible: '✍️ Writing your story…',
-  street: '🎨 Painting your world…',
-  outline: '🖊️ Tracing the paths…',
-  hotspots: '🗺️ Finding the walkways…',
-  character: '🐷 Dressing up Piglet…',
-  npc_openers: '💬 Rehearsing hellos…',
-  rooms: '🏠 Decorating the houses…',
-  tts: '🎙️ Warming up voices…',
-}
+import { useI18n } from '../i18n/context'
 
 interface Props {
   gameId: string
@@ -18,7 +8,18 @@ interface Props {
 }
 
 export function LoadingScreen({ gameId, onPlayable }: Props) {
-  const [currentStage, setCurrentStage] = useState('Starting up…')
+  const { t } = useI18n()
+  const stageCopy: Record<string, string> = {
+    bible: `✍️ ${t('loading.bible')}`,
+    street: `🎨 ${t('loading.street')}`,
+    outline: `🖊️ ${t('loading.outline')}`,
+    hotspots: `🗺️ ${t('loading.hotspots')}`,
+    character: `🐷 ${t('loading.character')}`,
+    npc_openers: `💬 ${t('loading.npc')}`,
+    rooms: `🏠 ${t('loading.rooms')}`,
+    tts: `🎙️ ${t('loading.tts')}`,
+  }
+  const [currentStage, setCurrentStage] = useState(t('loading.start'))
   const [streetUrl, setStreetUrl] = useState<string | null>(null)
   const [charUrl, setCharUrl] = useState<string | null>(null)
   const [title, setTitle] = useState<string | null>(null)
@@ -30,7 +31,7 @@ export function LoadingScreen({ gameId, onPlayable }: Props) {
       const event: SSEEvent = JSON.parse(e.data)
       if (event.status === 'running') {
         const key = event.stage?.startsWith('room_') ? 'rooms' : event.stage ?? ''
-        setCurrentStage(STAGE_COPY[key] ?? `Working on ${event.stage}…`)
+        setCurrentStage(stageCopy[key] ?? t('common.loading'))
       }
       if (event.stage === 'street' && event.status === 'done' && event.meta?.url) {
         setStreetUrl(event.meta.url as string)
@@ -72,7 +73,7 @@ export function LoadingScreen({ gameId, onPlayable }: Props) {
           {charUrl && (
             <img src={charUrl} alt="Piglet" style={styles.piglet} />
           )}
-          <p style={styles.hint}>Your adventure is being painted just for you!</p>
+          <p style={styles.hint}>{t('loading.hint')}</p>
         </div>
       </div>
     </div>

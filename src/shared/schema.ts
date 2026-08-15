@@ -159,6 +159,8 @@ export interface Game {
   fromWarmPool: boolean
   cozyVisuals?: boolean
   librarySourceId?: string
+  languageCode?: string
+  sourceIdea?: string
 }
 
 export interface AdventureSummary {
@@ -171,6 +173,7 @@ export interface AdventureSummary {
   reunionPhotoUrl?: string | null
   createdAt: string
   emoji: string
+  languageCode?: string
 }
 
 export interface AdventurePage {

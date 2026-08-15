@@ -3,6 +3,7 @@ import type { AdventurePage, AdventureSummary } from '@shared/schema'
 import { unlockAudio } from '../game/audio'
 import { getAdventureHistory, rememberAdventure } from '../game/adventureHistory'
 import { useGameStore } from '../game/store'
+import { useI18n } from '../i18n/context'
 
 interface Props {
   microQuestsEnabled: boolean
@@ -13,6 +14,7 @@ interface Props {
 const PAGE_SIZE = 20
 
 export function AdventureBrowser({ microQuestsEnabled, onBack, onStart }: Props) {
+  const { languageCode, t } = useI18n()
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [past, setPast] = useState<AdventureSummary[]>([])
@@ -37,12 +39,12 @@ export function AdventureBrowser({ microQuestsEnabled, onBack, onStart }: Props)
     fetch('/api/adventures/lookup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids }),
+      body: JSON.stringify({ ids, languageCode }),
     })
       .then(response => response.ok ? response.json() : Promise.reject())
       .then(data => setPast(data.items ?? []))
       .catch(() => {})
-  }, [])
+  }, [languageCode])
 
   useEffect(() => {
     const version = ++requestVersion.current
@@ -51,7 +53,7 @@ export function AdventureBrowser({ microQuestsEnabled, onBack, onStart }: Props)
     setHasMore(true)
     setError('')
     setLoading(true)
-    fetch(`/api/adventures?query=${encodeURIComponent(debouncedQuery)}&offset=0&limit=${PAGE_SIZE}`)
+    fetch(`/api/adventures?query=${encodeURIComponent(debouncedQuery)}&offset=0&limit=${PAGE_SIZE}&languageCode=${encodeURIComponent(languageCode)}`)
       .then(response => response.ok ? response.json() : Promise.reject())
       .then((page: AdventurePage) => {
         if (requestVersion.current !== version) return
@@ -59,16 +61,16 @@ export function AdventureBrowser({ microQuestsEnabled, onBack, onStart }: Props)
         setOffset(page.items.length)
         setHasMore(page.hasMore)
       })
-      .catch(() => requestVersion.current === version && setError('The adventure shelves are still waking up.'))
+      .catch(() => requestVersion.current === version && setError(t('library.waking')))
       .finally(() => requestVersion.current === version && setLoading(false))
-  }, [debouncedQuery])
+  }, [debouncedQuery, languageCode])
 
   async function loadMore() {
     if (loading || !hasMore) return
     const version = requestVersion.current
     setLoading(true)
     try {
-      const response = await fetch(`/api/adventures?query=${encodeURIComponent(debouncedQuery)}&offset=${offset}&limit=${PAGE_SIZE}`)
+      const response = await fetch(`/api/adventures?query=${encodeURIComponent(debouncedQuery)}&offset=${offset}&limit=${PAGE_SIZE}&languageCode=${encodeURIComponent(languageCode)}`)
       if (!response.ok) throw new Error('Library request failed')
       const page: AdventurePage = await response.json()
       if (requestVersion.current !== version) return
@@ -79,7 +81,7 @@ export function AdventureBrowser({ microQuestsEnabled, onBack, onStart }: Props)
       setOffset(current => current + page.items.length)
       setHasMore(page.hasMore)
     } catch {
-      setError('Could not load more adventures. Scroll again to retry.')
+      setError(t('library.loadMoreError'))
     } finally {
       if (requestVersion.current === version) setLoading(false)
     }
@@ -101,13 +103,13 @@ export function AdventureBrowser({ microQuestsEnabled, onBack, onStart }: Props)
     unlockAudio()
     unlockAudioStore()
     try {
-      const response = await fetch(`/api/adventures/${encodeURIComponent(adventure.id)}/play`, { method: 'POST' })
+      const response = await fetch(`/api/adventures/${encodeURIComponent(adventure.id)}/play?languageCode=${encodeURIComponent(languageCode)}`, { method: 'POST' })
       const data = await response.json()
       if (!response.ok) throw new Error('Adventure unavailable')
       rememberAdventure(data.sourceAdventureId ?? adventure.id)
       onStart(data.gameId, { microQuestsEnabled })
     } catch {
-      setError(`${adventure.title} could not be opened. Try another adventure.`)
+      setError(t('library.unavailable', { title: adventure.title }))
     } finally {
       setOpeningId(null)
     }
@@ -122,10 +124,10 @@ export function AdventureBrowser({ microQuestsEnabled, onBack, onStart }: Props)
     <main className="adventure-browser" style={styles.page}>
       <div style={styles.shell}>
         <header style={styles.header}>
-          <button style={styles.backButton} onClick={onBack} aria-label="Back to home">←</button>
+          <button style={styles.backButton} onClick={onBack} aria-label={t('common.back')}>←</button>
           <div>
-            <h1 style={styles.title}>Adventure Library</h1>
-            <p style={styles.subtitle}>Pick a world and help Piglet find Mama again.</p>
+            <h1 style={styles.title}>{t('library.title')}</h1>
+            <p style={styles.subtitle}>{t('library.subtitle')}</p>
           </div>
         </header>
 
@@ -136,8 +138,8 @@ export function AdventureBrowser({ microQuestsEnabled, onBack, onStart }: Props)
             style={styles.search}
             value={query}
             onChange={event => setQuery(event.target.value)}
-            placeholder="Search castles, farms, moon stations…"
-            aria-label="Search adventures"
+            placeholder={t('library.searchPlaceholder')}
+            aria-label={t('library.search')}
           />
           {query && <button style={styles.clearButton} onClick={() => setQuery('')} aria-label="Clear search">×</button>}
         </label>
@@ -146,13 +148,13 @@ export function AdventureBrowser({ microQuestsEnabled, onBack, onStart }: Props)
           <section style={styles.section} aria-labelledby="past-adventures-title">
             <div style={styles.sectionHeading}>
               <div>
-                <h2 id="past-adventures-title" style={styles.sectionTitle}>Your past adventures</h2>
-                <p style={styles.sectionHelp}>Jump back into a world you have visited.</p>
+                <h2 id="past-adventures-title" style={styles.sectionTitle}>{t('library.past')}</h2>
+                <p style={styles.sectionHelp}>{t('library.pastHelp')}</p>
               </div>
             </div>
             <div className="adventure-past-row" style={styles.pastRow}>
               {past.map(adventure => (
-                <AdventureCard key={adventure.id} adventure={adventure} opening={openingId === adventure.id} onPlay={play} compact />
+                <AdventureCard key={adventure.id} adventure={adventure} opening={openingId === adventure.id} onPlay={play} compact t={t} />
               ))}
             </div>
           </section>
@@ -162,22 +164,22 @@ export function AdventureBrowser({ microQuestsEnabled, onBack, onStart }: Props)
           <div style={styles.sectionHeading}>
             <div>
               <h2 id="global-adventures-title" style={styles.sectionTitle}>
-                {debouncedQuery ? `Search results for “${debouncedQuery}”` : 'Adventures from everyone'}
+                {debouncedQuery ? t('library.results', { query: debouncedQuery }) : t('library.everyone')}
               </h2>
-              <p style={styles.sectionHelp}>Every world here is ready to play with its existing artwork.</p>
+              <p style={styles.sectionHelp}>{t('library.everyoneHelp')}</p>
             </div>
           </div>
           <div className="adventure-global-grid" style={styles.grid}>
             {visibleAdventures.map(adventure => (
-              <AdventureCard key={adventure.id} adventure={adventure} opening={openingId === adventure.id} onPlay={play} />
+              <AdventureCard key={adventure.id} adventure={adventure} opening={openingId === adventure.id} onPlay={play} t={t} />
             ))}
           </div>
           {!loading && visibleAdventures.length === 0 && (
-            <div style={styles.empty}>No adventures match that search yet. Try another place or theme.</div>
+            <div style={styles.empty}>{t('library.empty')}</div>
           )}
           <div ref={sentinelRef} style={styles.sentinel} aria-hidden="true" />
-          {loading && <div style={styles.loading}>🐷 Looking along the shelves…</div>}
-          {!hasMore && visibleAdventures.length > 0 && <div style={styles.end}>You reached the end of the adventure shelf ✨</div>}
+          {loading && <div style={styles.loading}>🐷 {t('library.loading')}</div>}
+          {!hasMore && visibleAdventures.length > 0 && <div style={styles.end}>{t('library.end')} ✨</div>}
           {error && <div style={styles.error}>{error}</div>}
         </section>
       </div>
@@ -185,11 +187,12 @@ export function AdventureBrowser({ microQuestsEnabled, onBack, onStart }: Props)
   )
 }
 
-function AdventureCard({ adventure, opening, onPlay, compact = false }: {
+function AdventureCard({ adventure, opening, onPlay, compact = false, t }: {
   adventure: AdventureSummary
   opening: boolean
   onPlay: (adventure: AdventureSummary) => void
   compact?: boolean
+  t: ReturnType<typeof useI18n>['t']
 }) {
   return (
     <button
@@ -203,9 +206,9 @@ function AdventureCard({ adventure, opening, onPlay, compact = false }: {
       <span style={styles.cardShade} />
       <span style={styles.cardCopy}>
         <span style={styles.cardEyebrow}>{adventure.emoji} {adventure.settingName}</span>
-        <strong style={styles.cardTitle}>{opening ? 'Opening adventure…' : adventure.title}</strong>
+        <strong style={styles.cardTitle}>{opening ? t('library.opening') : adventure.title}</strong>
         <span style={styles.cardDescription}>{adventure.description}</span>
-        <span style={styles.playPill}>Play adventure <span aria-hidden="true">→</span></span>
+        <span style={styles.playPill}>{t('library.play')} <span aria-hidden="true">→</span></span>
       </span>
     </button>
   )

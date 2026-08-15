@@ -1,30 +1,33 @@
 import { useEffect } from 'react'
-import { speakText, stopAudio } from '../game/audio'
+import { playGameSpeech, speakText, stopAudio } from '../game/audio'
 import type { AdventureQuest } from '../game/adventureQuests'
+import { useI18n } from '../i18n/context'
 
 interface Props {
+  gameId: string
   quest: AdventureQuest
   onStart: () => void
   onLater: () => void
 }
 
-export function QuestBrief({ quest, onStart, onLater }: Props) {
+export function QuestBrief({ gameId, quest, onStart, onLater }: Props) {
+  const { languageCode, t } = useI18n()
   useEffect(() => {
-    speakText(quest.request)
+    playGameSpeech(gameId, quest.request, languageCode).catch(() => speakText(quest.request))
     return () => stopAudio()
-  }, [quest.id, quest.request])
+  }, [gameId, languageCode, quest.id, quest.request])
 
   return (
     <div className="quest-brief-overlay" style={styles.overlay} role="dialog" aria-modal="true" aria-labelledby="quest-title">
       <div className="quest-brief-card" style={styles.card}>
-        <div style={styles.badge}>A FRIEND NEEDS HELP</div>
+        <div style={styles.badge}>{t('quest.friendNeedsHelp')}</div>
         <div style={styles.icon}>🔎</div>
         <h2 id="quest-title" style={styles.title}>{quest.title}</h2>
         <p style={styles.request}>{quest.request}</p>
         <div style={styles.prompt}><span aria-hidden="true">✨</span> {quest.searchPrompt}</div>
         <div style={styles.actions}>
-          <button style={styles.later} onClick={onLater}>Maybe later</button>
-          <button style={styles.start} onClick={onStart}>Start searching!</button>
+          <button style={styles.later} onClick={onLater}>{t('quest.later')}</button>
+          <button style={styles.start} onClick={onStart}>{t('quest.start')}</button>
         </div>
       </div>
     </div>

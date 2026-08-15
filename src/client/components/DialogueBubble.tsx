@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { NPC, NPCChatResponse, PreloadedNPCReply, SuggestedNPCReply } from '@shared/schema'
 import { playAudio, speakText, stopAudio } from '../game/audio'
+import { useI18n } from '../i18n/context'
 
 interface Props {
   gameId: string
@@ -38,6 +39,7 @@ export function DialogueBubble({
   onAskMama,
   generatedPigletVoice = false,
 }: Props) {
+  const { languageCode, t } = useI18n()
   const [history, setHistory] = useState<ChatLine[]>(preloadedOpener
     ? [{ speaker: npc.name, text: preloadedOpener.reply }]
     : [])
@@ -68,7 +70,7 @@ export function DialogueBubble({
       const response = await fetch(`/api/game/${gameId}/piglet/speech`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, languageCode }),
       })
       if (!response.ok) throw new Error(`Piglet speech failed (${response.status})`)
       const result: { audioUrl?: string } = await response.json()
@@ -100,6 +102,7 @@ export function DialogueBubble({
           source,
           intent,
           hintAlreadyCollected: knowsHint.current,
+          languageCode,
         }),
       })
       if (!res.ok) throw new Error(`Conversation failed (${res.status})`)
@@ -116,10 +119,10 @@ export function DialogueBubble({
         onClueGranted(turn.hintId)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The conversation paused unexpectedly.')
+      setError(err instanceof Error ? err.message : t('dialogue.paused'))
       setSuggestions([
-        { text: 'Try again', intent: 'small_talk' },
-        { text: 'Leave for now', intent: 'goodbye' },
+        { text: t('common.retry'), intent: 'small_talk' },
+        { text: t('common.leave'), intent: 'goodbye' },
       ])
     } finally {
       setLoading(false)
@@ -173,7 +176,7 @@ export function DialogueBubble({
   async function startRecording() {
     if (loading || transcribing || recording || requestingMic) return
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      setError('Voice input is not available in this browser. You can still type below.')
+      setError(t('dialogue.micUnavailable'))
       return
     }
     recordingWanted.current = true
@@ -208,30 +211,30 @@ export function DialogueBubble({
         if (!blob.size) return
         setTranscribing(true)
         try {
-          const response = await fetch('/api/transcribe', {
+          const response = await fetch(`/api/transcribe?languageCode=${encodeURIComponent(languageCode)}`, {
             method: 'POST',
             headers: { 'Content-Type': blob.type || 'audio/webm' },
             body: blob,
           })
-          if (!response.ok) throw new Error('I could not hear that clearly.')
+          if (!response.ok) throw new Error(t('dialogue.noWords'))
           const result: { text?: string } = await response.json()
           const transcript = result.text?.trim()
-          if (!transcript) throw new Error('I could not hear any words. Try once more.')
+          if (!transcript) throw new Error(t('dialogue.noWords'))
           stopAudio()
-          if (/\b(mama|mother|help.*find|seen her)\b/i.test(transcript) && onAskMama?.()) {
+          if (isMamaQuestion(transcript) && onAskMama?.()) {
             onClose()
           } else {
             requestTurn(transcript, 'typed', undefined, playPigletSpeech(transcript))
           }
         } catch (voiceError) {
-          setError(voiceError instanceof Error ? voiceError.message : 'Voice input paused unexpectedly.')
+          setError(voiceError instanceof Error ? voiceError.message : t('dialogue.paused'))
         } finally {
           setTranscribing(false)
           recorderRef.current = null
         }
       }
       recorder.onerror = () => {
-        setError('Voice recording paused unexpectedly. Please try again.')
+        setError(t('dialogue.paused'))
         stopRecording()
       }
       recorder.start(250)
@@ -244,7 +247,7 @@ export function DialogueBubble({
       recordingTimeout.current = window.setTimeout(stopRecording, 30000)
     } catch {
       recordingWanted.current = false
-      setError('Microphone access is needed for voice input. You can still type below.')
+      setError(t('dialogue.micPermission'))
     } finally {
       setRequestingMic(false)
     }
@@ -280,7 +283,7 @@ export function DialogueBubble({
     const message = input.trim()
     if (!message || loading) return
     setInput('')
-    if (/\b(mama|mother|help.*find|seen her)\b/i.test(message) && onAskMama?.()) {
+    if (isMamaQuestion(message) && onAskMama?.()) {
       stopAudio()
       playPigletSpeech(message).finally(onClose)
       return
@@ -297,7 +300,7 @@ export function DialogueBubble({
   const seenSuggestions = new Set<string>()
   const normalizedSuggestions = suggestions
     .map(suggestion => suggestion.intent === 'ask_mama'
-      ? { ...suggestion, text: 'Have you seen my Mama?' }
+      ? { ...suggestion, text: t('dialogue.askMama') }
       : suggestion)
     .filter(suggestion => {
       const key = `${suggestion.intent}:${suggestion.text}`
@@ -307,7 +310,7 @@ export function DialogueBubble({
     })
   const chatOptions = normalizedSuggestions.some(suggestion => suggestion.intent === 'goodbye')
     ? normalizedSuggestions
-    : [...normalizedSuggestions, { text: 'Leave conversation', intent: 'goodbye' as const }]
+    : [...normalizedSuggestions, { text: t('common.leave'), intent: 'goodbye' as const }]
 
   return (
     <div className="dialogue-overlay" style={styles.overlay} role="dialog" aria-label={`Talking to ${npc.name}`}>
@@ -324,16 +327,16 @@ export function DialogueBubble({
             <button
               style={styles.viewBtn}
               onClick={() => setViewMode(mode => mode === 'glass' ? 'compact' : 'glass')}
-              aria-label={viewMode === 'glass' ? 'Use compact dialogue view' : 'Use glass dialogue view'}
-              title="Change dialogue panel size"
-            >{viewMode === 'glass' ? '▱ Compact' : '◫ Glass'}</button>
+              aria-label={viewMode === 'glass' ? t('dialogue.compact') : t('dialogue.glass')}
+              title={t('dialogue.changeView')}
+            >{viewMode === 'glass' ? `▱ ${t('dialogue.compact')}` : `◫ ${t('dialogue.glass')}`}</button>
             <button
               style={styles.iconBtn}
               onClick={() => audioUrl && playAudio(audioUrl).catch(() => {})}
               disabled={!audioUrl}
-              aria-label="Replay NPC voice"
+              aria-label={t('dialogue.replay')}
             >🔊</button>
-            <button style={styles.leaveBtn} onClick={leave}>Esc · leave</button>
+            <button style={styles.leaveBtn} onClick={leave}>{t('dialogue.escLeave')}</button>
           </div>
         </div>
 
@@ -350,7 +353,7 @@ export function DialogueBubble({
           {loading && (
             <div style={{ ...styles.line, ...styles.npcLine }}>
               <span style={styles.thinkingDot}>●</span>
-              <span>{npc.name} is thinking…</span>
+              <span>{t('dialogue.thinking', { name: npc.name })}</span>
             </div>
           )}
         </div>
@@ -359,10 +362,10 @@ export function DialogueBubble({
         {(requestingMic || recording || transcribing) && (
           <div className="dialogue-voice-status" style={styles.voiceStatus} aria-live="polite">
             {requestingMic
-              ? '🎙️ Opening the microphone…'
+              ? `🎙️ ${t('voice.opening')}`
               : recording
-                ? `🔴 Listening… ${recordingSeconds}s · tap the red button when done`
-                : '✨ Turning your voice into words…'}
+                ? `🔴 ${t('dialogue.listening', { seconds: recordingSeconds })}`
+                : `✨ ${t('dialogue.transcribing')}`}
           </div>
         )}
 
@@ -390,25 +393,35 @@ export function DialogueBubble({
             type="button"
             onClick={toggleRecording}
             disabled={loading || transcribing || requestingMic}
-            aria-label={recording ? 'Stop recording' : 'Start voice input'}
-            title={recording ? 'Tap to stop' : 'Tap to talk'}
+            aria-label={recording ? t('voice.stop') : t('voice.listen')}
+            title={recording ? t('voice.stop') : t('voice.listen')}
           >{recording ? '●' : '🎙️'}</button>
           <input
             style={styles.input}
             value={input}
             onChange={event => setInput(event.target.value)}
-            placeholder={`Say anything to ${npc.name}…`}
+            placeholder={t('dialogue.placeholder', { name: npc.name })}
             maxLength={180}
             disabled={loading}
-            aria-label={`Say something to ${npc.name}`}
+            aria-label={t('dialogue.placeholder', { name: npc.name })}
           />
-          <button style={styles.sendBtn} type="submit" disabled={loading || !input.trim()} aria-label="Send message">
+          <button style={styles.sendBtn} type="submit" disabled={loading || !input.trim()} aria-label={t('dialogue.send')}>
             ➤
           </button>
         </form>
       </div>
     </div>
   )
+}
+
+const MAMA_TERMS = [
+  'mama', 'mother', 'मम्मा', 'माँ', 'मां', 'ಅಮ್ಮ', 'அம்மா', 'అమ్మ',
+  'মা', 'आई', 'મમ્મી', 'ਮਾਂ', 'അമ്മ', 'ମା',
+]
+
+function isMamaQuestion(text: string) {
+  const folded = text.toLocaleLowerCase()
+  return MAMA_TERMS.some(term => folded.includes(term))
 }
 
 const styles: Record<string, React.CSSProperties> = {

@@ -14,6 +14,7 @@ const EXIT_RADIUS = 90
 
 let app: Application | null = null
 let initPromise: Promise<void> | null = null
+let engineLifecycleVersion = 0
 // Async scene loads can overlap (notably during React StrictMode remounts or
 // when a freshly generated hub URL arrives). Only the newest load may render.
 let sceneLoadVersion = 0
@@ -53,21 +54,35 @@ let activeQuestObjects: QuestObject[] = []
 const questMarkers = new Map<string, Container>()
 
 export async function initEngine(container: HTMLDivElement): Promise<void> {
-  if (initPromise) await initPromise.catch(() => {})
-  destroyEngine()
+  const lifecycleVersion = ++engineLifecycleVersion
+  const previousInit = initPromise
+  if (previousInit) await previousInit.catch(() => {})
+  if (lifecycleVersion !== engineLifecycleVersion) return
+
+  cleanupEngineResources()
 
   const newApp = new Application()
   // Pixi creates its own canvas (a canvas element can't survive a second
   // WebGL context after destroy, which hangs HMR remounts). Fixed logical
   // buffer; CSS (object-fit: contain) scales it, so ALL game math stays in
   // 1024x1024 image space.
-  initPromise = newApp.init({
+  const currentInit = newApp.init({
     width: WORLD_W,
     height: WORLD_H,
     backgroundColor: 0x87ceeb,
   })
+  initPromise = currentInit
 
-  await initPromise
+  try {
+    await currentInit
+  } finally {
+    if (initPromise === currentInit) initPromise = null
+  }
+  if (lifecycleVersion !== engineLifecycleVersion) {
+    try { newApp.destroy(true, { children: true }) } catch { /* ignore */ }
+    return
+  }
+
   app = newApp
   const canvas = newApp.canvas
   engineCanvas = canvas
@@ -84,7 +99,12 @@ export async function initEngine(container: HTMLDivElement): Promise<void> {
 }
 
 export function destroyEngine() {
+  engineLifecycleVersion += 1
   sceneLoadVersion += 1
+  cleanupEngineResources()
+}
+
+function cleanupEngineResources() {
   detachKeyboard()
   window.removeEventListener('keydown', onDebugKey)
   gridOverlay = null
@@ -102,7 +122,6 @@ export function destroyEngine() {
   exitMarker = null
   activeQuestObjects = []
   questMarkers.clear()
-  initPromise = null
   if (engineCanvas) engineCanvas.removeEventListener('pointerdown', onCanvasPointerDown)
   engineCanvas = null
   moveTarget = null

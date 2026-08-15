@@ -243,7 +243,7 @@ def verify_bible_hints(bible: GameBible) -> bool:
     return survivors == {bible.finalLocationId}
 
 
-def derive_hint_logic(bible: GameBible) -> bool:
+def derive_hint_logic(bible: GameBible, language_code: str = "en-IN") -> bool:
     """Build clue copy and elimination logic from one shared fact table.
 
     This prevents the model from independently inventing spoken dialogue,
@@ -271,7 +271,12 @@ def derive_hint_logic(bible: GameBible) -> bool:
             loc.id for loc in bible.candidateLocations
             if getattr(loc.clueFacts, kind).strip().casefold() != fact.casefold()  # type: ignore[union-attr]
         ]
-        hint.text = f"Mama went somewhere {fact}."
+        # The model's translated hint is part of the story voice. Preserve it
+        # for multilingual adventures while deriving the authoritative
+        # elimination logic from the shared fact table. Rebuilding it with an
+        # English prefix made otherwise-native adventures feel disconnected.
+        if language_code == "en-IN":
+            hint.text = f"Mama went somewhere {fact}."
         hint.eliminatesLocationIds = eliminated
         npc = next((npc for npc in bible.npcs if npc.id == hint.npcId), None)
         if npc:
@@ -323,21 +328,39 @@ def repair_bible(bible: GameBible) -> GameBible:
 
 
 def repair_hint_elimination(bible: GameBible) -> GameBible:
-    """Truthful last resort: each neighbor rules out one wrong location.
+    """Truthful last resort: each clue rules out one compatible wrong location.
 
-    It is less poetic than positive triangulation, but it never ships a clue
-    whose words contradict the answer.
+    Preserve the model's native-language clue copy. Replacing it with a generic
+    English sentence made multilingual stories sound abruptly disconnected.
     """
+    from itertools import permutations
+
     wrong = [loc for loc in bible.candidateLocations if loc.id != bible.finalLocationId]
+    final = next((loc for loc in bible.candidateLocations if loc.id == bible.finalLocationId), None)
     kinds = ("attribute", "direction", "object")
-    for hint, loc, kind in zip(bible.hints, wrong, kinds):
-        hint.kind = kind  # type: ignore[assignment]
-        hint.text = f"I am sure Mama did not stop at {loc.name}."
+    hints_by_kind = {hint.kind: hint for hint in bible.hints}
+
+    assignment = None
+    if final and final.clueFacts and all(loc.clueFacts for loc in wrong):
+        for candidate_order in permutations(wrong):
+            if all(
+                getattr(location.clueFacts, kind).strip().casefold()
+                != getattr(final.clueFacts, kind).strip().casefold()
+                for kind, location in zip(kinds, candidate_order)
+            ):
+                assignment = candidate_order
+                break
+
+    if assignment is None:
+        assignment = tuple(wrong)
+
+    for kind, loc in zip(kinds, assignment):
+        hint = hints_by_kind.get(kind)
+        if not hint:
+            continue
         hint.eliminatesLocationIds = [loc.id]
         npc = next((npc for npc in bible.npcs if npc.id == hint.npcId), None)
         if npc:
             npc.lines.hint = hint.text
-    final = next((loc for loc in bible.candidateLocations if loc.id == bible.finalLocationId), None)
-    bible.verification = f"Each clue rules out one wrong place; only {final.name if final else 'the final location'} remains."
-    print("[bible] used truthful elimination fallback")
+    print("[bible] used native-language truthful elimination fallback")
     return bible

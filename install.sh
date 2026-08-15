@@ -6,7 +6,7 @@
 #
 # Non-interactive:
 #   curl -fsSL https://raw.githubusercontent.com/saumitras/oinkoink/main/install.sh \
-#     | OPENAI_API_KEY=sk-... bash
+#     | OPENAI_API_KEY=sk-... SARVAM_API_KEY=... bash
 
 set -Eeuo pipefail
 
@@ -71,9 +71,36 @@ case "$OPENAI_API_KEY" in
   *$'\n'*|*$'\r'*) fail "The OpenAI API key contains an invalid newline." ;;
 esac
 
+if [ -z "${SARVAM_API_KEY:-}" ]; then
+  if [ ! -r /dev/tty ]; then
+    fail "SARVAM_API_KEY is required. Set it in the environment and run the installer again."
+  fi
+  printf "▶ Enter your Sarvam API key: " >/dev/tty
+  IFS= read -r -s SARVAM_API_KEY </dev/tty
+  printf "\n" >/dev/tty
+fi
+
+[ -n "$SARVAM_API_KEY" ] || fail "The Sarvam API key cannot be empty."
+case "$SARVAM_API_KEY" in
+  *$'\n'*|*$'\r'*) fail "The Sarvam API key contains an invalid newline." ;;
+esac
+
 TEMP_ENV="$(mktemp "${TMPDIR:-/tmp}/oinkoink-env.XXXXXX")"
 chmod 600 "$TEMP_ENV"
-printf 'OPENAI_API_KEY=%s\n' "$OPENAI_API_KEY" >"$TEMP_ENV"
+LARGE_STRUCTURED_OUTPUT_PROVIDER="${LARGE_STRUCTURED_OUTPUT_PROVIDER:-openai}"
+case "$LARGE_STRUCTURED_OUTPUT_PROVIDER" in
+  openai|sarvam) ;;
+  *) fail "LARGE_STRUCTURED_OUTPUT_PROVIDER must be either openai or sarvam." ;;
+esac
+SARVAM_STORY_MAX_TOKENS="${SARVAM_STORY_MAX_TOKENS:-16384}"
+case "$SARVAM_STORY_MAX_TOKENS" in
+  ''|*[!0-9]*) fail "SARVAM_STORY_MAX_TOKENS must be a positive integer." ;;
+esac
+[ "$SARVAM_STORY_MAX_TOKENS" -gt 0 ] \
+  || fail "SARVAM_STORY_MAX_TOKENS must be a positive integer."
+printf 'OPENAI_API_KEY=%s\nSARVAM_API_KEY=%s\nLARGE_STRUCTURED_OUTPUT_PROVIDER=%s\nSARVAM_STORY_MAX_TOKENS=%s\n' \
+  "$OPENAI_API_KEY" "$SARVAM_API_KEY" "$LARGE_STRUCTURED_OUTPUT_PROVIDER" \
+  "$SARVAM_STORY_MAX_TOKENS" >"$TEMP_ENV"
 
 if [ "$SKIP_PULL" != "true" ]; then
   echo ""

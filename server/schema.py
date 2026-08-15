@@ -194,3 +194,5 @@ class Game(BaseModel):
     fromWarmPool: bool = False
     cozyVisuals: bool = False
     librarySourceId: Optional[str] = None
+    languageCode: str = "en-IN"
+    sourceIdea: Optional[str] = None

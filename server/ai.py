@@ -2,6 +2,7 @@ import asyncio
 import base64
 import hashlib
 import io
+from typing import Literal
 
 import numpy as np
 from PIL import Image
@@ -11,10 +12,18 @@ from server.config import (
     OPENAI_API_KEY, TEXT_MODEL, NPC_MODEL, OPENAI_IMAGE_MODEL,
     OPENAI_IMAGE_QUALITY, OPENAI_IMAGE_SIZE,
     TTS_MODEL, TRANSCRIBE_MODEL, MODERATION_MODEL,
+    LARGE_STRUCTURED_OUTPUT_PROVIDER,
 )
 from server.cache import cache_get_bytes, cache_set_bytes, cache_get_json, cache_set_json
 from server.schema import GameBible, ScreenAnnotation, RoomAnnotation, NPCModelReply, NPC, SuggestedReply
 from server.schema_utils import make_strict_schema
+from server.sarvam import (
+    language_name,
+    npc_chat as sarvam_npc_chat,
+    story_chat as sarvam_story_chat,
+    synthesize_speech as sarvam_synthesize_speech,
+    transcribe_audio as sarvam_transcribe_audio,
+)
 
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
@@ -194,7 +203,11 @@ ANIMAL_SOUNDS = {
 }
 
 
-def build_npc_opener(npc: NPC, bible: GameBible | None = None) -> NPCModelReply:
+def build_npc_opener(
+    npc: NPC,
+    bible: GameBible | None = None,
+    language_code: str = "en-IN",
+) -> NPCModelReply:
     """Build the first turn without an interaction-time model call."""
     profile = npc.conversation
     sound = (profile.animalSound or ANIMAL_SOUNDS.get(npc.species.casefold(), "Hello")).strip(" .!?-")
@@ -217,10 +230,10 @@ def build_npc_opener(npc: NPC, bible: GameBible | None = None) -> NPCModelReply:
     ]
     suggestions = []
     seen_suggestions: set[str] = set()
-    for choice in choices[:3]:
+    for index, choice in enumerate(choices[:3]):
         normalized = choice.casefold()
-        intent = "ask_mama" if any(word in normalized for word in ("mama", "mother", "clue", "help")) else "small_talk"
-        text = "Have you seen my Mama?" if intent == "ask_mama" else choice
+        intent = "ask_mama" if index == 0 or any(word in normalized for word in ("mama", "mother", "clue", "help")) else "small_talk"
+        text = "Have you seen my Mama?" if intent == "ask_mama" and language_code == "en-IN" else choice
         key = f"{intent}:{text.casefold()}"
         if key in seen_suggestions:
             continue
@@ -327,21 +340,34 @@ that question has exactly one answer. Never use another language unless the user
 world idea is written in that language."""
 
 
-async def generate_bible(idea: str, correction: str = "", cozy_visuals: bool = False) -> GameBible:
-    # Cache key includes the system prompt so prompt iterations invalidate stale bibles
+async def _generate_openai_bible(
+    idea: str,
+    correction: str = "",
+    cozy_visuals: bool = False,
+    language_code: str = "en-IN",
+) -> GameBible:
+    """Create one cohesive game bible in a single OpenAI structured response."""
     visual_mode = (
         "VISUAL MODE OVERRIDE: Use soft pastels, warm sunlight, cheerful bright colors, and nothing dark or scary."
         if cozy_visuals
         else "VISUAL MODE: Match the visual mood of the user's idea; do not automatically make it sunny, pastel, green, or outdoors."
     )
-    instructions = f"{BIBLE_SYSTEM}\n\n{visual_mode}"
+    output_language = language_name(language_code)
+    instructions = (
+        f"{BIBLE_SYSTEM}\n\n"
+        f"Write all player-visible text in {output_language}. Keep gameplay IDs in short lowercase ASCII.\n"
+        f"{visual_mode}"
+    )
     sys_hash = hashlib.sha256(instructions.encode()).hexdigest()[:8]
-    payload = f"{sys_hash}|{idea}|{correction}|cozy:{cozy_visuals}"
+    payload = (
+        f"openai-full-bible|{sys_hash}|{idea}|{correction}|"
+        f"cozy:{cozy_visuals}|lang:{language_code}"
+    )
     cached = cache_get_json("bible", payload)
     if cached:
         return GameBible.model_validate(cached)
 
-    user_msg = f'World idea: "{idea}". Design the game bible.'
+    user_msg = f'World idea: "{idea}". Design the complete game bible as one connected story.'
     if correction:
         user_msg += f"\n\nCorrection needed: {correction}"
 
@@ -350,11 +376,77 @@ async def generate_bible(idea: str, correction: str = "", cozy_visuals: bool = F
             model=TEXT_MODEL,
             instructions=instructions,
             input=user_msg,
-            text={"format": {"type": "json_schema", "name": "game_bible", "schema": make_strict_schema(GameBible.model_json_schema()), "strict": True}},
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "game_bible",
+                    "schema": make_strict_schema(GameBible.model_json_schema()),
+                    "strict": True,
+                }
+            },
         )
 
     response = await _with_retry(call)
     bible = GameBible.model_validate_json(response.output_text)
+    cache_set_json("bible", payload, bible.model_dump())
+    return bible
+
+
+async def generate_bible(
+    idea: str,
+    correction: str = "",
+    cozy_visuals: bool = False,
+    language_code: str = "en-IN",
+) -> GameBible:
+    if LARGE_STRUCTURED_OUTPUT_PROVIDER == "openai":
+        return await _generate_openai_bible(
+            idea,
+            correction=correction,
+            cozy_visuals=cozy_visuals,
+            language_code=language_code,
+        )
+    return await _generate_sarvam_bible(
+        idea,
+        correction=correction,
+        cozy_visuals=cozy_visuals,
+        language_code=language_code,
+    )
+
+
+async def _generate_sarvam_bible(
+    idea: str,
+    correction: str = "",
+    cozy_visuals: bool = False,
+    language_code: str = "en-IN",
+) -> GameBible:
+    """Create one cohesive game bible in a single high-budget Sarvam response."""
+    visual_mode = (
+        "VISUAL MODE OVERRIDE: Use soft pastels, warm sunlight, cheerful bright colors, and nothing dark or scary."
+        if cozy_visuals
+        else "VISUAL MODE: Match the visual mood of the user's idea; do not automatically make it sunny, pastel, green, or outdoors."
+    )
+    output_language = language_name(language_code)
+    instructions = (
+        f"{BIBLE_SYSTEM}\n\n"
+        f"Write all player-visible text in {output_language}. Keep gameplay IDs in short lowercase ASCII.\n"
+        f"{visual_mode}"
+    )
+    sys_hash = hashlib.sha256(instructions.encode()).hexdigest()[:8]
+    payload = (
+        f"sarvam-full-bible|{sys_hash}|{idea}|{correction}|"
+        f"cozy:{cozy_visuals}|lang:{language_code}"
+    )
+    cached = cache_get_json("bible", payload)
+    if cached:
+        return GameBible.model_validate(cached)
+
+    user_msg = f'World idea: "{idea}". Design the complete game bible as one connected story.'
+    if correction:
+        user_msg += f"\n\nCorrection needed: {correction}"
+
+    bible = GameBible.model_validate(
+        await sarvam_story_chat(instructions, user_msg, GameBible)
+    )
     cache_set_json("bible", payload, bible.model_dump())
     return bible
 
@@ -366,6 +458,7 @@ async def generate_npc_reply(
     history: list[dict[str, str]],
     must_reveal_hint: bool,
     hint_already_collected: bool,
+    language_code: str = "en-IN",
 ) -> NPCModelReply:
     """Generate characterful dialogue while the server owns clue progression."""
     npc = next((n for n in bible.npcs if n.id == npc_id), None)
@@ -390,28 +483,15 @@ async def generate_npc_reply(
         )
     )
 
-    instructions = f"""You are {npc.name}, a {npc.species} in the cozy game Oink Oink Lost.
-Stay completely in character and speak directly to Piglet.
-
-Character:
-- Personality: {npc.personality}
-- Speech style: {profile.speechStyle}
-- Favorite topic: {profile.favoriteTopic}
-- Room: {building.name} — {building.interiorDescription or building.exteriorDescription}
-- Setting: {bible.setting.name} — {bible.setting.description}
-- Small-talk facts you may use: {small_talk}
-
-Conversation rules:
-- Reply in 1-2 short sentences, at most 34 words total.
-- Be warm, specific, playful, and conversational. Ask at most one question.
-- Write for speech, not for a page: use contractions, everyday wording, and punctuation that creates a natural cadence.
-- Vary sentence length. A small hesitation such as “Hmm…” is welcome when it fits, but never repeat a stock opener every turn.
-- Avoid formal phrases such as “I am sure,” “I did notice,” and “perhaps you should.”
-- Never invent another clue, Mama sighting, location fact, or game objective.
-- {clue_rule}
-- Return 2-3 very short suggested replies. Include an ask_mama option whenever the clue is not yet known.
-- Use goodbye intent only for a natural conversation-ending choice.
-"""
+    output_language = language_name(language_code)
+    instructions = f"""Act as {npc.name}, a {npc.personality} {npc.species}, speaking directly to baby Piglet.
+Speak only in {output_language}. Your style is {profile.speechStyle}.
+You are in {building.name}. You enjoy {profile.favoriteTopic}. Facts: {small_talk}.
+Reply naturally in 1-2 playful sentences, maximum 34 words. Ask at most one question.
+Never invent clues, Mama sightings, locations, or objectives. {clue_rule}
+Return 2-3 short lines that Piglet could say next, written from Piglet's viewpoint in {output_language}.
+Include intent ask_mama until the clue is known.
+Intent values stay exactly ask_mama, small_talk, or goodbye. Mood values stay in English."""
 
     user_input = (
         f"Recent conversation:\n{recent_history}\n\nPiglet says: {player_message}"
@@ -419,33 +499,25 @@ Conversation rules:
         else f"Recent conversation:\n{recent_history}\n\nPiglet has just approached. Give a welcoming opening line."
     )
 
-    async def call():
-        return await openai_client.responses.parse(
-            model=NPC_MODEL,
-            instructions=instructions,
-            input=user_input,
-            store=False,
-            text={"format": {
-                "type": "json_schema",
-                "name": "npc_conversation_turn",
-                "schema": make_strict_schema(NPCModelReply.model_json_schema()),
-                "strict": True,
-            }},
-        )
-
-    response = await _with_retry(call)
-    result = NPCModelReply.model_validate_json(response.output_text)
+    result = NPCModelReply.model_validate(
+        await sarvam_npc_chat(instructions, user_input, NPCModelReply)
+    )
 
     unique_suggestions: list[SuggestedReply] = []
     seen_suggestions: set[str] = set()
     for suggestion in result.suggestedReplies:
-        if suggestion.intent == "ask_mama":
+        if suggestion.intent == "ask_mama" and language_code == "en-IN":
             suggestion.text = "Have you seen my Mama?"
         key = f"{suggestion.intent}:{suggestion.text.casefold()}"
         if key in seen_suggestions:
             continue
         seen_suggestions.add(key)
         unique_suggestions.append(suggestion)
+    if not hint_already_collected and not any(
+        suggestion.intent == "ask_mama" for suggestion in unique_suggestions
+    ):
+        ask_text = profile.openingChoices[0] if profile.openingChoices else "Have you seen my Mama?"
+        unique_suggestions.insert(0, SuggestedReply(text=ask_text, intent="ask_mama"))
     result.suggestedReplies = unique_suggestions
 
     # The clue text is game state, not model state. Guarantee the player hears
@@ -741,40 +813,38 @@ async def generate_tts(
     voice: str,
     instructions: str = DEFAULT_TTS_INSTRUCTIONS,
     speed: float = 1.0,
+    language_code: str = "en-IN",
 ) -> bytes:
     cache_key = (
-        f"{voice}:{instructions}:{text}"
+        f"sarvam:{language_code}:{voice}:{instructions}:{text}"
         if speed == 1.0
-        else f"{voice}:{speed}:{instructions}:{text}"
+        else f"sarvam:{language_code}:{voice}:{speed}:{instructions}:{text}"
     )
     cached = cache_get_bytes("tts", cache_key)
     if cached:
         return cached
 
-    async def call():
-        return await openai_client.audio.speech.create(
-            model=TTS_MODEL,
-            voice=voice,  # type: ignore
-            input=text,
-            instructions=instructions,
-            response_format="mp3",
-            speed=speed,
-        )
-
-    response = await _with_retry(call)
-    data = response.read()
+    data = await sarvam_synthesize_speech(
+        text,
+        language_code=language_code,
+        speaker=voice,
+        pace=speed,
+    )
     cache_set_bytes("tts", cache_key, data)
     return data
 
 
-async def transcribe_audio(audio: bytes, content_type: str = "audio/webm") -> str:
+async def transcribe_audio(
+    audio: bytes,
+    content_type: str = "audio/webm",
+    language_code: str = "unknown",
+) -> dict:
     extension = "mp4" if "mp4" in content_type else "webm"
-    response = await openai_client.audio.transcriptions.create(
-        model=TRANSCRIBE_MODEL,
-        file=(f"piglet.{extension}", audio, content_type),
-        prompt="A young player is speaking to a friendly animal in the game Oink Oink Lost. Mama means Mama Pig.",
+    return await sarvam_transcribe_audio(
+        audio,
+        filename=f"piglet.{extension}",
+        language_code=language_code,
     )
-    return response.text.strip()
 
 
 # ── Moderation ────────────────────────────────────────────────────────────────

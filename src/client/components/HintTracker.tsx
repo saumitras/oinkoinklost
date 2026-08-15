@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { playAudio, speakText } from '../game/audio'
 import type { Game } from '@shared/schema'
 import { questForNpc } from '../game/adventureQuests'
+import { useI18n } from '../i18n/context'
 
 interface Props {
   game: Game
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function HintTracker({ game, collectedHintIds, embedded = false, forceExpanded = false }: Props) {
+  const { t } = useI18n()
   const [expanded, setExpanded] = useState(false)
   const previousCount = useRef(collectedHintIds.length)
   const autoCollapseTimer = useRef<number>(0)
@@ -50,9 +52,9 @@ export function HintTracker({ game, collectedHintIds, embedded = false, forceExp
         style={styles.header}
         onClick={toggleExpanded}
         aria-expanded={isExpanded}
-        aria-label={`${collectedHintIds.length} of 3 clues found`}
+        aria-label={t('clues.foundAria', { count: collectedHintIds.length })}
       >
-        <span>🔎 Clues</span>
+        <span>🔎 {t('clues.title')}</span>
         <span style={styles.progress}>{collectedHintIds.length} / {game.bible.hints.length}</span>
         {!forceExpanded && <span aria-hidden="true">{isExpanded ? '▲' : '▼'}</span>}
       </button>
@@ -88,7 +90,7 @@ export function HintTracker({ game, collectedHintIds, embedded = false, forceExp
                 ) : (
                   <span style={styles.clueNumber}>{collected ? '✓' : i + 1}</span>
                 )}
-                <span>{collected ? hint.text : `Find marker ${i + 1} on the map`}</span>
+                <span>{collected ? hint.text : t('clues.findMarker', { number: i + 1 })}</span>
                 {collected && <span aria-hidden="true">🔊</span>}
               </button>
             )

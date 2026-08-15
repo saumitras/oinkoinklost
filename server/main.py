@@ -21,12 +21,16 @@ from server.events import subscribe, unsubscribe, emit
 from server.ai import (
     build_npc_opener, build_npc_mama_reply, moderate_idea, generate_reunion_photo,
     generate_npc_reply, generate_tts, npc_tts_profile, transcribe_audio,
+    DEFAULT_TTS_INSTRUCTIONS, NARRATOR_VOICE,
     PIGLET_TTS_INSTRUCTIONS, PIGLET_TTS_SPEED, PIGLET_VOICE,
 )
 from server.schema import Game, NPCModelReply, PreloadedNPCReply, SuggestedReply
 from server.storage import save_asset
 from server.adventure_library import (
     is_library_ready, list_adventures, lookup_adventures, valid_game_id,
+)
+from server.sarvam import (
+    LANGUAGES, localize_bible, supported_language, translate_map, translate_text,
 )
 
 app = FastAPI()
@@ -48,6 +52,11 @@ app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 class StartGameBody(BaseModel):
     idea: str = ""
     cozyVisuals: bool = False
+    languageCode: str = "en-IN"
+
+
+class StartPresetBody(BaseModel):
+    languageCode: str = "en-IN"
 
 
 class SolveBody(BaseModel):
@@ -60,19 +69,35 @@ class NPCChatBody(BaseModel):
     source: Literal["start", "suggestion", "typed"] = "typed"
     intent: Optional[Literal["ask_mama", "small_talk", "goodbye"]] = None
     hintAlreadyCollected: bool = False
+    languageCode: Optional[str] = None
 
 
 class PigletSpeechBody(BaseModel):
     text: str
+    languageCode: Optional[str] = None
+
+
+class GameSpeechBody(BaseModel):
+    text: str
+    role: Literal["narrator", "piglet"] = "narrator"
+    languageCode: Optional[str] = None
 
 
 class AdventureLookupBody(BaseModel):
     ids: list[str] = []
+    languageCode: str = "en-IN"
+
+
+class TranslateUIBody(BaseModel):
+    targetLanguage: str
+    strings: dict[str, str]
 
 
 # Short-lived dev-mode memory. A session is stable while the current adventure
 # remains mounted, including when the player leaves and revisits an NPC.
 _npc_sessions: dict[str, dict] = {}
+# Reunion generation is keyed by the canonical library adventure, not by an
+# individual play-through. Replays share one story and therefore one photo.
 _reunion_jobs: set[str] = set()
 
 PRESET_WORLDS = {
@@ -101,6 +126,48 @@ PRESET_WORLDS = {
         "emoji": "🧛",
     },
 }
+
+MAMA_TERMS = (
+    "mama", "mother", "mom", "mum", "मम्मा", "माँ", "मामा", "आई", "ಅಮ್ಮ",
+    "அம்மா", "అమ్మ", "মা", "મમ્મી", "મા", "ਮੰਮੀ", "ਮਾਂ", "അമ്മ", "ମା",
+)
+
+
+async def localize_replay(game: Game, language_code: str) -> None:
+    language_code = supported_language(language_code)
+    game.languageCode = language_code
+    if language_code == "en-IN" or not game.bible:
+        return
+    game.bible = await localize_bible(game.bible, language_code)
+    # The source template's English voice assets and preloaded dialogue must not
+    # leak into a localized play-through. Sarvam regenerates them on demand.
+    game.assets.audio = {}
+    game.assets.npcOpeners = {}
+    game.assets.npcMamaReplies = {}
+    game.assets.npcMamaReplyVariants = {}
+
+
+async def localize_adventure_summaries(items: list[dict], target: str) -> None:
+    groups: dict[str, list[tuple[int, dict]]] = {}
+    for index, item in enumerate(items):
+        source = supported_language(item.get("languageCode"))
+        if source != target:
+            groups.setdefault(source, []).append((index, item))
+    for source, group in groups.items():
+        strings: dict[str, str] = {}
+        for index, item in group:
+            strings[f"{index}.title"] = item["title"]
+            strings[f"{index}.settingName"] = item["settingName"]
+            strings[f"{index}.description"] = item["description"]
+        translated = await translate_map(
+            strings,
+            source_language_code=source,
+            target_language_code=target,
+        )
+        for index, item in group:
+            item["title"] = translated[f"{index}.title"]
+            item["settingName"] = translated[f"{index}.settingName"]
+            item["description"] = translated[f"{index}.description"]
 
 
 CURATED_CLUE_OPENERS = {
@@ -181,12 +248,33 @@ async def start_game(body: StartGameBody):
             "suggestions": ["a pumpkin farm in autumn", "a cozy space station on the moon"],
         })
 
-    game = await run_pipeline(idea, cozy_visuals=body.cozyVisuals)
+    game = await run_pipeline(
+        idea,
+        cozy_visuals=body.cozyVisuals,
+        language_code=supported_language(body.languageCode),
+    )
     return {"gameId": game.id}
 
 
+@app.get("/api/languages")
+async def list_languages():
+    return [{"code": code, **details} for code, details in LANGUAGES.items()]
+
+
+@app.post("/api/i18n/translate")
+async def translate_ui(body: TranslateUIBody):
+    target = supported_language(body.targetLanguage)
+    return {
+        "languageCode": target,
+        "translations": await translate_map(
+            dict(list(body.strings.items())[:160]),
+            target_language_code=target,
+        ),
+    }
+
+
 @app.get("/api/presets")
-async def list_presets():
+async def list_presets(languageCode: str = "en-IN"):
     presets = []
     for slug, meta in PRESET_WORLDS.items():
         template = get_or_load_game(meta["templateId"])
@@ -199,25 +287,54 @@ async def list_presets():
             "emoji": meta["emoji"],
             "previewUrl": template.assets.streetUrl,
         })
+    target = supported_language(languageCode)
+    if target != "en-IN" and presets:
+        source = {
+            f"{index}.title": preset["title"]
+            for index, preset in enumerate(presets)
+        }
+        source.update({
+            f"{index}.subtitle": preset["subtitle"]
+            for index, preset in enumerate(presets)
+        })
+        translated = await translate_map(source, target_language_code=target)
+        for index, preset in enumerate(presets):
+            preset["title"] = translated[f"{index}.title"]
+            preset["subtitle"] = translated[f"{index}.subtitle"]
     return presets
 
 
 @app.get("/api/adventures")
-async def browse_adventures(query: str = "", offset: int = 0, limit: int = 20):
-    return list_adventures(
-        query=query,
+async def browse_adventures(
+    query: str = "", offset: int = 0, limit: int = 20, languageCode: str = "en-IN"
+):
+    target = supported_language(languageCode)
+    search_query = query
+    if query.strip() and target != "en-IN":
+        try:
+            search_query = await translate_text(
+                query, source_language_code=target, target_language_code="en-IN"
+            )
+        except Exception:
+            pass
+    page = list_adventures(
+        query=search_query,
         offset=max(0, offset),
         limit=min(20, max(1, limit)),
     )
+    await localize_adventure_summaries(page["items"], target)
+    return page
 
 
 @app.post("/api/adventures/lookup")
 async def adventure_history(body: AdventureLookupBody):
-    return {"items": lookup_adventures(body.ids[:40])}
+    items = lookup_adventures(body.ids[:40])
+    await localize_adventure_summaries(items, supported_language(body.languageCode))
+    return {"items": items}
 
 
 @app.post("/api/adventures/{adventure_id}/play", status_code=201)
-async def play_library_adventure(adventure_id: str):
+async def play_library_adventure(adventure_id: str, languageCode: str = "en-IN"):
     if not valid_game_id(adventure_id):
         raise HTTPException(status_code=404, detail="adventure_not_found")
     template = get_or_load_game(adventure_id)
@@ -230,12 +347,18 @@ async def play_library_adventure(adventure_id: str):
     game.fromWarmPool = True
     game.librarySourceId = template.librarySourceId or template.id
 
+    # Older clones may not contain the source adventure's cached reunion photo.
+    # Copy the canonical URL into the new play-through so its finale is instant.
+    source = get_or_load_game(game.librarySourceId)
+    if source and source.assets.reunionPhotoUrl:
+        game.assets.reunionPhotoUrl = source.assets.reunionPhotoUrl
     preset_slug = next((
         slug for slug, meta in PRESET_WORLDS.items()
         if meta["templateId"] == game.librarySourceId
     ), None)
     if preset_slug in CURATED_CLUE_OPENERS:
         apply_curated_mystery_variant(game, preset_slug)
+    await localize_replay(game, languageCode)
     ensure_preloaded_mama_replies(game)
 
     set_game(game)
@@ -244,7 +367,7 @@ async def play_library_adventure(adventure_id: str):
 
 
 @app.post("/api/presets/{slug}", status_code=201)
-async def start_preset(slug: str):
+async def start_preset(slug: str, body: Optional[StartPresetBody] = None):
     meta = PRESET_WORLDS.get(slug)
     if not meta:
         raise HTTPException(status_code=404, detail="preset_not_found")
@@ -261,10 +384,11 @@ async def start_preset(slug: str):
     game.librarySourceId = meta["templateId"]
     if slug in CURATED_CLUE_OPENERS:
         apply_curated_mystery_variant(game, slug)
+    await localize_replay(game, body.languageCode if body else "en-IN")
     ensure_preloaded_mama_replies(game)
     for npc in game.bible.npcs:  # type: ignore[union-attr]
         if npc.id not in game.assets.npcOpeners:
-            opener = build_npc_opener(npc, game.bible)
+            opener = build_npc_opener(npc, game.bible, game.languageCode)
             game.assets.npcOpeners[npc.id] = PreloadedNPCReply(
                 **opener.model_dump(),
                 audioUrl=None,
@@ -374,17 +498,17 @@ async def share_adventure_card(game_id: str, request: Request):
 
 
 @app.post("/api/transcribe")
-async def transcribe(request: Request):
+async def transcribe(request: Request, languageCode: str = "unknown"):
     audio = await request.body()
     if not audio:
         raise HTTPException(status_code=400, detail="empty_audio")
     content_type = request.headers.get("content-type", "audio/webm").split(";", 1)[0]
     try:
-        text = await transcribe_audio(audio, content_type)
+        transcript = await transcribe_audio(audio, content_type, languageCode)
     except Exception as exc:
         print(f"[transcribe] {exc}")
         raise HTTPException(status_code=502, detail="transcription_failed") from exc
-    return {"text": text}
+    return transcript
 
 
 @app.post("/api/game/{game_id}/piglet/speech")
@@ -399,8 +523,9 @@ async def piglet_speech(game_id: str, body: PigletSpeechBody):
     if len(text) > 300:
         raise HTTPException(status_code=400, detail="text_too_long")
 
+    language_code = supported_language(body.languageCode or game.languageCode)
     digest = hashlib.sha256(
-        f"{PIGLET_VOICE}:{PIGLET_TTS_SPEED}:{PIGLET_TTS_INSTRUCTIONS}:{text}".encode()
+        f"{language_code}:{PIGLET_VOICE}:{PIGLET_TTS_SPEED}:{PIGLET_TTS_INSTRUCTIONS}:{text}".encode()
     ).hexdigest()[:16]
     asset_key = f"shared-audio/piglet_{digest}.mp3"
     asset_path = ASSETS_DIR / asset_key
@@ -411,12 +536,42 @@ async def piglet_speech(game_id: str, body: PigletSpeechBody):
                 PIGLET_VOICE,
                 PIGLET_TTS_INSTRUCTIONS,
                 speed=PIGLET_TTS_SPEED,
+                language_code=language_code,
             )
             save_asset(asset_key, audio)
         except Exception as exc:
             print(f"[piglet-tts:{game_id}] {exc}")
             raise HTTPException(status_code=502, detail="speech_generation_failed") from exc
 
+    return {"audioUrl": f"/assets/{asset_key}"}
+
+
+@app.post("/api/game/{game_id}/speech")
+async def game_speech(game_id: str, body: GameSpeechBody):
+    game = get_or_load_game(game_id)
+    if not game:
+        raise HTTPException(status_code=404)
+    text = body.text.strip()
+    if not text or len(text) > 1200:
+        raise HTTPException(status_code=400, detail="invalid_text")
+    language_code = supported_language(body.languageCode or game.languageCode)
+    voice = PIGLET_VOICE if body.role == "piglet" else NARRATOR_VOICE
+    instructions = PIGLET_TTS_INSTRUCTIONS if body.role == "piglet" else DEFAULT_TTS_INSTRUCTIONS
+    speed = PIGLET_TTS_SPEED if body.role == "piglet" else 1.0
+    digest = hashlib.sha256(
+        f"{body.role}:{language_code}:{voice}:{speed}:{instructions}:{text}".encode()
+    ).hexdigest()[:20]
+    asset_key = f"shared-audio/{body.role}_{digest}.mp3"
+    asset_path = ASSETS_DIR / asset_key
+    if not asset_path.exists():
+        try:
+            audio = await generate_tts(
+                text, voice, instructions, speed=speed, language_code=language_code
+            )
+            save_asset(asset_key, audio)
+        except Exception as exc:
+            print(f"[game-speech:{game_id}:{body.role}] {exc}")
+            raise HTTPException(status_code=502, detail="speech_generation_failed") from exc
     return {"audioUrl": f"/assets/{asset_key}"}
 
 
@@ -451,10 +606,8 @@ async def npc_chat(game_id: str, npc_id: str, body: NPCChatBody):
         state["userTurns"] += 1
         state["history"].append({"role": "Piglet", "text": message})
 
-    asks_for_mama = body.intent == "ask_mama" or any(
-        phrase in message.lower()
-        for phrase in ("mama", "mother", "help me", "help find", "seen her", "clue")
-    )
+    message_folded = message.casefold()
+    asks_for_mama = body.intent == "ask_mama" or any(term in message_folded for term in MAMA_TERMS)
     should_grant = (
         not state["clueGranted"]
         and not body.hintAlreadyCollected
@@ -476,6 +629,7 @@ async def npc_chat(game_id: str, npc_id: str, body: NPCChatBody):
                 state["history"],
                 must_reveal_hint=should_grant,
                 hint_already_collected=bool(state["clueGranted"]),
+                language_code=supported_language(body.languageCode or game.languageCode),
             )
         except Exception as e:
             # Keep the prototype playable while prompts/models are being iterated.
@@ -483,15 +637,24 @@ async def npc_chat(game_id: str, npc_id: str, body: NPCChatBody):
             if should_grant:
                 reply = f"{npc.conversation.clueLeadIn} {hint.text}"
             elif body.source == "start":
-                reply = build_npc_opener(npc, game.bible).reply
+                reply = build_npc_opener(npc, game.bible, game.languageCode).reply
             else:
                 reply = npc.lines.idle
             turn = NPCModelReply(
                 reply=reply,
                 suggestedReplies=[
-                    SuggestedReply(text="Have you seen my Mama?", intent="ask_mama"),
-                    SuggestedReply(text=f"Tell me about {npc.conversation.favoriteTopic}.", intent="small_talk"),
-                    SuggestedReply(text="See you soon!", intent="goodbye"),
+                    SuggestedReply(
+                        text=(npc.conversation.openingChoices[0]
+                              if npc.conversation.openingChoices
+                              else "Have you seen my Mama?"),
+                        intent="ask_mama",
+                    ),
+                    SuggestedReply(
+                        text=(npc.conversation.openingChoices[1]
+                              if len(npc.conversation.openingChoices) > 1
+                              else npc.lines.idle),
+                        intent="small_talk",
+                    ),
                 ],
                 mood="helpful" if should_grant else "cheerful",
                 conversationComplete=False,
@@ -507,10 +670,15 @@ async def npc_chat(game_id: str, npc_id: str, body: NPCChatBody):
         else preloaded_mama.audioUrl if use_preloaded_mama and preloaded_mama
         else None
     )
-    if not use_preloaded and not use_preloaded_mama:
+    if not audio_url:
         try:
             voice, instructions = npc_tts_profile(npc, game.bible)
-            audio = await generate_tts(turn.reply, voice, instructions)
+            audio = await generate_tts(
+                turn.reply,
+                voice,
+                instructions,
+                language_code=supported_language(body.languageCode or game.languageCode),
+            )
             digest = hashlib.sha256(f"{npc_id}:{voice}:{instructions}:{turn.reply}".encode()).hexdigest()[:16]
             audio_url = save_asset(f"games/{game.id}/audio/chat_{digest}.mp3", audio)
             if should_grant:
@@ -532,24 +700,48 @@ async def npc_chat(game_id: str, npc_id: str, body: NPCChatBody):
 
 
 def ensure_reunion_photo(game: Game) -> str:
-    if game.assets.reunionPhotoUrl:
+    source_id = (
+        game.librarySourceId
+        if game.librarySourceId and valid_game_id(game.librarySourceId)
+        else game.id
+    )
+    source = get_or_load_game(source_id) or game
+
+    # Prefer the canonical adventure's photo. This also updates older clones
+    # that were created before the source acquired its cached image.
+    if source.assets.reunionPhotoUrl:
+        if game.assets.reunionPhotoUrl != source.assets.reunionPhotoUrl:
+            game.assets.reunionPhotoUrl = source.assets.reunionPhotoUrl
+            set_game(game)
+            snapshot_game(game)
         return "ready"
-    if game.id in _reunion_jobs:
+
+    # Promote an already-generated legacy clone photo into the source cache.
+    if game.assets.reunionPhotoUrl:
+        source.assets.reunionPhotoUrl = game.assets.reunionPhotoUrl
+        set_game(source)
+        snapshot_game(source)
+        return "ready"
+
+    if source_id in _reunion_jobs:
         return "generating"
 
-    _reunion_jobs.add(game.id)
+    _reunion_jobs.add(source_id)
 
     async def gen_reunion():
         try:
-            data = await generate_reunion_photo(game.bible, game.cozyVisuals)
-            url = save_asset(f"games/{game.id}/reunion.png", data)
+            data = await generate_reunion_photo(source.bible or game.bible, source.cozyVisuals)
+            url = save_asset(f"games/{source_id}/reunion.png", data)
+            source.assets.reunionPhotoUrl = url
+            set_game(source)
+            snapshot_game(source)
             game.assets.reunionPhotoUrl = url
             set_game(game)
             snapshot_game(game)
         except Exception as e:
-            print(f"[reunion:{game.id}] {e}")
+            print(f"[reunion:{source_id}] {e}")
         finally:
-            _reunion_jobs.discard(game.id)
+            _reunion_jobs.discard(source_id)
 
     spawn_task(gen_reunion())
     return "generating"

@@ -135,11 +135,48 @@ export function isCuratedAdventure(game: Game): boolean {
   return curatedAdventure(game) !== null
 }
 
-function questsForGame(game: Game): AdventureQuest[] {
+export function questsForGame(game: Game): AdventureQuest[] {
   const adventure = curatedAdventure(game)
   if (adventure === 'pumpkin') return PUMPKIN_QUESTS
   if (adventure === 'moon') return MOON_QUESTS
   return []
+}
+
+export async function localizeQuests(
+  quests: AdventureQuest[],
+  languageCode: string,
+): Promise<AdventureQuest[]> {
+  if (languageCode === 'en-IN' || !quests.length) return quests
+  const strings: Record<string, string> = {}
+  quests.forEach((quest, questIndex) => {
+    strings[`${questIndex}.title`] = quest.title
+    strings[`${questIndex}.request`] = quest.request
+    strings[`${questIndex}.searchPrompt`] = quest.searchPrompt
+    strings[`${questIndex}.success`] = quest.success
+    quest.objects.forEach((object, objectIndex) => {
+      strings[`${questIndex}.objects.${objectIndex}.label`] = object.label
+      strings[`${questIndex}.objects.${objectIndex}.response`] = object.response
+    })
+  })
+  const response = await fetch('/api/i18n/translate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ targetLanguage: languageCode, strings }),
+  })
+  if (!response.ok) return quests
+  const result: { translations: Record<string, string> } = await response.json()
+  return quests.map((quest, questIndex) => ({
+    ...quest,
+    title: result.translations[`${questIndex}.title`] ?? quest.title,
+    request: result.translations[`${questIndex}.request`] ?? quest.request,
+    searchPrompt: result.translations[`${questIndex}.searchPrompt`] ?? quest.searchPrompt,
+    success: result.translations[`${questIndex}.success`] ?? quest.success,
+    objects: quest.objects.map((object, objectIndex) => ({
+      ...object,
+      label: result.translations[`${questIndex}.objects.${objectIndex}.label`] ?? object.label,
+      response: result.translations[`${questIndex}.objects.${objectIndex}.response`] ?? object.response,
+    })),
+  }))
 }
 
 export function questForNpc(game: Game, npcId: string): AdventureQuest | undefined {

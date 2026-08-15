@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Game } from '@shared/schema'
-import { playAudio } from '../game/audio'
+import { playAudio, playGameSpeech, speakText } from '../game/audio'
+import { useI18n } from '../i18n/context'
 
 interface Props {
   game: Game
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function ReunionScene({ game, onNewAdventure, accomplishments = [] }: Props) {
+  const { languageCode, t } = useI18n()
   const [photoUrl, setPhotoUrl] = useState(game.assets.reunionPhotoUrl)
   const [shareStatus, setShareStatus] = useState('')
 
@@ -54,7 +56,11 @@ export function ReunionScene({ game, onNewAdventure, accomplishments = [] }: Pro
   useEffect(() => {
     const url = game.assets.audio['narrator.reunion']
     if (url) playAudio(url).catch(() => {})
-  }, [game.assets.audio])
+    else if (game.bible?.reunionLine) {
+      playGameSpeech(game.id, game.bible.reunionLine, languageCode)
+        .catch(() => speakText(game.bible?.reunionLine ?? ''))
+    }
+  }, [game.assets.audio, game.bible?.reunionLine, game.id, languageCode])
 
   async function shareOnWhatsApp() {
     const shareUrl = `${window.location.origin}/share/${encodeURIComponent(game.id)}`
@@ -76,7 +82,7 @@ export function ReunionScene({ game, onNewAdventure, accomplishments = [] }: Pro
         }
         if (navigator.canShare(shareData)) {
           await navigator.share(shareData)
-          setShareStatus('Reunion photo shared!')
+          setShareStatus(t('reunion.shared'))
           return
         }
       } catch (error) {
@@ -103,7 +109,7 @@ export function ReunionScene({ game, onNewAdventure, accomplishments = [] }: Pro
       anchor.download = `${title || 'oink-oink-lost'}-reunion.png`
       anchor.click()
       window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
-      setShareStatus('Reunion photo downloaded!')
+      setShareStatus(t('reunion.downloaded'))
     } catch {
       window.open(photoUrl, '_blank', 'noopener,noreferrer')
     }
@@ -123,23 +129,23 @@ export function ReunionScene({ game, onNewAdventure, accomplishments = [] }: Pro
         ))}
       </div>
       <div className="reunion-card" style={styles.card}>
-        <div style={styles.badge}>MYSTERY SOLVED · 3 CLUES FOUND</div>
+        <div style={styles.badge}>{t('reunion.badge')}</div>
         <div style={styles.emoji}>🐷💛🐷</div>
-        <h2 style={styles.title}>You found Mama!</h2>
+        <h2 style={styles.title}>{t('reunion.title')}</h2>
         {photoUrl ? (
           <div style={styles.photoFrame}>
             <img className="reunion-photo" src={photoUrl} alt="Reunion" style={styles.photo} />
             <div style={styles.photoGlow} aria-hidden="true">✨</div>
           </div>
         ) : (
-          <div style={styles.photoPlaceholder}>📸 Developing your photo…</div>
+          <div style={styles.photoPlaceholder}>📸 {t('reunion.developing')}</div>
         )}
         {game.bible && (
           <p style={styles.reunionLine}>{game.bible.reunionLine}</p>
         )}
         {accomplishments.length > 0 && (
           <div style={styles.memories}>
-            <strong>Piglet's adventure memories</strong>
+            <strong>{t('reunion.memories')}</strong>
             <div style={styles.memoryBadges}>
               {accomplishments.map((memory, index) => (
                 <span key={memory} style={styles.memoryBadge}>{['🌾', '🥧', '🍎'][index % 3]} {memory}</span>
@@ -170,7 +176,7 @@ export function ReunionScene({ game, onNewAdventure, accomplishments = [] }: Pro
             style={{ ...styles.newAdventureBtn, ...styles.btn }}
             onClick={onNewAdventure}
           >
-            <span aria-hidden="true">🌟</span> New adventure
+            <span aria-hidden="true">🌟</span> {t('reunion.newAdventure')}
           </button>
         </div>
         {shareStatus && <div style={styles.shareStatus} role="status">{shareStatus}</div>}

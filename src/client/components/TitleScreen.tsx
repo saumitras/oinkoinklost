@@ -3,6 +3,9 @@ import { unlockAudio } from '../game/audio'
 import { useGameStore } from '../game/store'
 import { rememberAdventure } from '../game/adventureHistory'
 import { AdventureBrowser } from './AdventureBrowser'
+import { useI18n } from '../i18n/context'
+import { LANGUAGES } from '../i18n/strings'
+import { useVoiceInput } from '../game/voiceInput'
 
 interface Props {
   onStart: (gameId: string, options: { microQuestsEnabled: boolean }) => void
@@ -17,6 +20,7 @@ interface PresetWorld {
 }
 
 export function TitleScreen({ onStart }: Props) {
+  const { languageCode, setLanguageCode, t, ready } = useI18n()
   const [idea, setIdea] = useState('')
   const [cozyVisuals, setCozyVisuals] = useState(false)
   const [microQuestsEnabled, setMicroQuestsEnabled] = useState(false)
@@ -26,13 +30,14 @@ export function TitleScreen({ onStart }: Props) {
   const [error, setError] = useState('')
   const [showBrowser, setShowBrowser] = useState(false)
   const unlockAudioFn = useGameStore(s => s.unlockAudio)
+  const voice = useVoiceInput(languageCode, transcript => setIdea(transcript))
 
   useEffect(() => {
-    fetch('/api/presets')
+    fetch(`/api/presets?languageCode=${encodeURIComponent(languageCode)}`)
       .then(res => res.ok ? res.json() : Promise.reject())
       .then(setPresets)
-      .catch(() => setError('Preset worlds are still waking up. You can create a custom one below.'))
-  }, [])
+      .catch(() => setError(t('title.presetsWaking')))
+  }, [languageCode])
 
   function prepareAudio() {
     unlockAudio()
@@ -41,7 +46,7 @@ export function TitleScreen({ onStart }: Props) {
 
   async function startCustom() {
     if (!idea.trim()) {
-      setError('Choose a world above or describe your own adventure!')
+      setError(t('title.ideaRequired'))
       return
     }
     setLoading(true)
@@ -51,22 +56,22 @@ export function TitleScreen({ onStart }: Props) {
       const res = await fetch('/api/game', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idea, cozyVisuals }),
+        body: JSON.stringify({ idea, cozyVisuals, languageCode }),
       })
       const data = await res.json()
       if (!res.ok) {
         const detail = data.detail ?? data
         if (detail.error === 'idea_flagged') {
-          setError("Let's pick a different adventure! Try: " + detail.suggestions.join(', '))
+          setError(`${t('title.pickDifferent')} ${detail.suggestions.join(', ')}`)
         } else {
-          setError('Something went wrong. Try again!')
+          setError(t('title.genericError'))
         }
         return
       }
       rememberAdventure(data.gameId)
       onStart(data.gameId, { microQuestsEnabled })
     } catch {
-      setError('Could not connect to the server.')
+      setError(t('title.connectionError'))
     } finally {
       setLoading(false)
     }
@@ -77,13 +82,17 @@ export function TitleScreen({ onStart }: Props) {
     setError('')
     prepareAudio()
     try {
-      const res = await fetch(`/api/presets/${preset.slug}`, { method: 'POST' })
+      const res = await fetch(`/api/presets/${preset.slug}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ languageCode }),
+      })
       const data = await res.json()
       if (!res.ok) throw new Error('Preset unavailable')
       rememberAdventure(data.sourceAdventureId ?? data.gameId)
       onStart(data.gameId, { microQuestsEnabled })
     } catch {
-      setError(`${preset.title} is unavailable right now. Try another world!`)
+      setError(t('title.presetUnavailable', { title: preset.title }))
     } finally {
       setLoadingPreset(null)
     }
@@ -107,15 +116,32 @@ export function TitleScreen({ onStart }: Props) {
   return (
     <div className="title-screen" style={styles.container}>
       <div className="title-card" style={styles.card}>
+        <div style={styles.languagePanel}>
+          <label htmlFor="story-language" style={styles.languageLabel}>{t('language.choose')}</label>
+          <select
+            id="story-language"
+            value={languageCode}
+            onChange={event => setLanguageCode(event.target.value)}
+            style={styles.languageSelect}
+            disabled={busy}
+          >
+            {LANGUAGES.map(language => (
+              <option key={language.code} value={language.code}>
+                {language.native} · {language.english}
+              </option>
+            ))}
+          </select>
+          {!ready && <span style={styles.languageStatus}>{t('language.translating')}</span>}
+        </div>
         <div className="title-brand-row" style={styles.brandRow}>
           <div style={styles.emoji}>🐷</div>
           <div>
             <h1 style={styles.title}>Oink Oink Lost</h1>
-            <p className="title-subtitle" style={styles.subtitle}>A little lost piglet, three friendly clues, and one big Mama mystery.</p>
+            <p className="title-subtitle" style={styles.subtitle}>{t('app.subtitle')}</p>
           </div>
         </div>
 
-        <div style={styles.label}>Where should the adventure happen?</div>
+        <div style={styles.label}>{t('title.where')}</div>
         <label className="title-quest-option" style={{
           ...styles.questOption,
           ...(microQuestsEnabled ? styles.questOptionEnabled : {}),
@@ -128,11 +154,11 @@ export function TitleScreen({ onStart }: Props) {
             style={styles.checkbox}
           />
           <span style={styles.questOptionCopy}>
-            <strong>Little helper quests</strong>
-            <small style={styles.optionHelp}>Help each neighbor with a tiny search before they share their clue</small>
+            <strong>{t('title.helperQuests')}</strong>
+            <small style={styles.optionHelp}>{t('title.helperHelp')}</small>
           </span>
           <span style={{ ...styles.questStatus, ...(microQuestsEnabled ? styles.questStatusOn : {}) }}>
-            {microQuestsEnabled ? 'On' : 'Off'}
+            {microQuestsEnabled ? t('common.on') : t('common.off')}
           </span>
         </label>
         <div className="title-preset-grid" style={styles.presetGrid}>
@@ -143,13 +169,13 @@ export function TitleScreen({ onStart }: Props) {
               style={styles.presetCard}
               onClick={() => startPreset(preset)}
               disabled={busy}
-              aria-label={`Start ${preset.title} adventure`}
+              aria-label={t('title.startPreset', { title: preset.title })}
             >
               <img src={preset.previewUrl} alt="" style={styles.presetImage} />
               <span style={styles.presetShade} />
               <span style={styles.presetContent}>
                 <span style={styles.presetTitle}>
-                  {preset.emoji} {loadingPreset === preset.slug ? 'Opening…' : preset.title}
+                  {preset.emoji} {loadingPreset === preset.slug ? t('title.opening') : preset.title}
                 </span>
                 <span style={styles.presetSubtitle}>{preset.subtitle}</span>
               </span>
@@ -157,22 +183,32 @@ export function TitleScreen({ onStart }: Props) {
           ))}
         </div>
 
-        <div style={styles.divider}><span style={styles.dividerLine} /><span>or invent your own</span><span style={styles.dividerLine} /></div>
+        <div style={styles.divider}><span style={styles.dividerLine} /><span>{t('title.orInvent')}</span><span style={styles.dividerLine} /></div>
 
         <div className="title-custom-row" style={styles.customRow}>
           <input
             id="adventure-idea"
             style={styles.input}
-            placeholder="A cloud castle, a moonlit bakery…"
+            placeholder={t('title.ideaPlaceholder')}
             value={idea}
             onChange={event => setIdea(event.target.value)}
             onKeyDown={event => event.key === 'Enter' && startCustom()}
             maxLength={120}
             disabled={busy}
-            aria-label="Describe a custom adventure world"
+            aria-label={t('title.ideaAria')}
           />
+          <button
+            type="button"
+            style={{ ...styles.micBtn, ...(voice.state === 'recording' ? styles.micBtnRecording : {}) }}
+            onClick={voice.toggle}
+            disabled={busy || voice.state === 'processing' || voice.state === 'requesting'}
+            aria-label={voice.state === 'recording' ? t('voice.listening') : t('voice.listen')}
+            title={voice.state === 'recording' ? t('voice.listening') : t('voice.listen')}
+          >
+            {voice.state === 'processing' || voice.state === 'requesting' ? '…' : voice.state === 'recording' ? '■' : '🎙️'}
+          </button>
           <button style={styles.btnPrimary} onClick={startCustom} disabled={busy || !idea.trim()}>
-            {loading ? '🎨 Creating…' : '🌟 Create'}
+            {loading ? `🎨 ${t('title.creating')}` : `🌟 ${t('title.create')}`}
           </button>
         </div>
 
@@ -185,25 +221,32 @@ export function TitleScreen({ onStart }: Props) {
             style={styles.checkbox}
           />
           <span>
-            <strong>Extra cozy &amp; bright visuals</strong>
-            <small style={styles.optionHelp}>Soft pastels, warm sunlight, cheerful colors, and nothing dark or scary</small>
+            <strong>{t('title.cozy')}</strong>
+            <small style={styles.optionHelp}>{t('title.cozyHelp')}</small>
           </span>
         </label>
 
         <button style={styles.surpriseBtn} onClick={surpriseMe} disabled={busy || !presets.length}>
-          🎲 Surprise me with a ready world
+          🎲 {t('title.surprise')}
         </button>
 
         <button className="title-browse-button" style={styles.browseBtn} onClick={() => setShowBrowser(true)} disabled={busy}>
           <span style={styles.browseIcon}>🗺️</span>
           <span style={styles.browseCopy}>
-            <strong>Browse all adventures</strong>
-            <small>Search worlds made by everyone and revisit your past adventures</small>
+            <strong>{t('title.browse')}</strong>
+            <small>{t('title.browseHelp')}</small>
           </span>
           <span aria-hidden="true" style={styles.browseArrow}>→</span>
         </button>
 
         {error && <p style={styles.error}>{error}</p>}
+        {voice.state !== 'idle' && (
+          <p style={styles.voiceStatus} role="status">
+            {voice.state === 'recording' ? `🔴 ${t('voice.listening')}`
+              : voice.state === 'processing' || voice.state === 'requesting' ? `✨ ${t('voice.processing')}`
+                : voice.error === 'permission' ? t('title.micPermission') : t('title.micUnavailable')}
+          </p>
+        )}
       </div>
     </div>
   )
@@ -219,6 +262,17 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(255,255,255,0.96)', borderRadius: 28, padding: '32px clamp(22px, 4vw, 38px)',
     maxWidth: 920, width: '100%', boxShadow: '0 12px 40px rgba(92,55,36,0.16)',
   },
+  languagePanel: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+    flexWrap: 'wrap', marginBottom: 18, padding: '10px 13px', borderRadius: 14,
+    background: '#fff5e9', border: '1px solid #f1d4b9',
+  },
+  languageLabel: { color: '#6d4433', fontSize: 12, fontWeight: 900 },
+  languageSelect: {
+    padding: '8px 12px', borderRadius: 10, border: '1.5px solid #e1b891',
+    background: 'white', color: '#5e4335', fontWeight: 800, cursor: 'pointer',
+  },
+  languageStatus: { fontSize: 10, color: '#a16e51', fontWeight: 700 },
   brandRow: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 24 },
   emoji: { fontSize: 62, lineHeight: 1 },
   title: { fontSize: 34, fontWeight: 900, color: '#e07b54', margin: 0 },
@@ -267,6 +321,12 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '13px 22px', fontSize: 15, fontWeight: 850, background: '#e07b54', color: 'white',
     border: 0, borderRadius: 12, cursor: 'pointer', whiteSpace: 'nowrap',
   },
+  micBtn: {
+    width: 46, minWidth: 46, border: '2px solid #e6b99f', borderRadius: 12,
+    background: '#fff7f1', color: '#b75c3b', cursor: 'pointer', fontSize: 18, fontWeight: 900,
+  },
+  micBtnRecording: { background: '#df5d5d', color: 'white', borderColor: '#c64747' },
+  voiceStatus: { color: '#9a5d42', margin: '9px 0 0', textAlign: 'center', fontSize: 12, fontWeight: 800 },
   surpriseBtn: {
     display: 'block', margin: '13px auto 0', padding: '8px 13px', fontSize: 12, fontWeight: 800,
     background: 'transparent', color: '#b36c4d', border: 0, cursor: 'pointer',

@@ -18,6 +18,7 @@ from server.ai import (
     build_npc_opener, build_npc_mama_reply, npc_voice, npc_tts_profile,
     DEFAULT_TTS_INSTRUCTIONS, NARRATOR_VOICE,
 )
+from server.sarvam import translate_map
 
 CANNED_IDEAS = ["a pumpkin farm in autumn", "a cozy space station on the moon"]
 
@@ -43,7 +44,7 @@ def _set_stage(game: Game, stage: str, status: str, meta: dict | None = None) ->
     set_game(game)
 
 
-async def run_pipeline(idea: str, cozy_visuals: bool = False) -> Game:
+async def run_pipeline(idea: str, cozy_visuals: bool = False, language_code: str = "en-IN") -> Game:
     game = Game(
         id=nanoid(),
         idea=idea,
@@ -52,6 +53,8 @@ async def run_pipeline(idea: str, cozy_visuals: bool = False) -> Game:
         stages={s: "pending" for s in ["bible", "street", "outline", "hotspots", "character", "npc_openers", "tts"]},
         assets=GameAssets(),
         cozyVisuals=cozy_visuals,
+        languageCode=language_code,
+        sourceIdea=idea,
     )
     set_game(game)
     spawn_task(_execute(game))
@@ -62,19 +65,14 @@ async def _execute(game: Game) -> None:
     try:
         # Stage 1: Bible
         _set_stage(game, "bible", "running")
-        bible = await generate_bible(game.idea, cozy_visuals=game.cozyVisuals)
-        if not derive_hint_logic(bible):
-            print(f"[pipeline:{game.id}] bible triangulation invalid, retrying")
-            bible = await generate_bible(
-                game.idea,
-                "Previous hint triangulation was invalid — the three hints together must eliminate every "
-                "candidate location except finalLocationId, and must never eliminate finalLocationId. "
-                "Redesign the hints and eliminatesLocationIds so exactly one location survives all three.",
-                cozy_visuals=game.cozyVisuals,
-            )
-            if not derive_hint_logic(bible):
-                print(f"[pipeline:{game.id}] triangulation still invalid after retry -> truthful fallback")
-                bible = repair_hint_elimination(bible)
+        bible = await generate_bible(
+            game.idea,
+            cozy_visuals=game.cozyVisuals,
+            language_code=game.languageCode,
+        )
+        if not derive_hint_logic(bible, game.languageCode):
+            print(f"[pipeline:{game.id}] triangulation invalid -> native-language truthful repair")
+            bible = repair_hint_elimination(bible)
         bible = repair_bible(bible)
         game.bible = bible
         for i, npc in enumerate(bible.npcs):
@@ -171,13 +169,13 @@ async def _run_npc_openers(game: Game) -> None:
     _set_stage(game, "npc_openers", "running")
 
     async def prepare(npc):
-        turn = build_npc_opener(npc, bible)
+        turn = build_npc_opener(npc, bible, game.languageCode)
         mama_turn = build_npc_mama_reply(npc, bible)
         voice, instructions = npc_tts_profile(npc, bible)
 
         async def prepare_audio(kind: str, text: str) -> str | None:
             try:
-                data = await generate_tts(text, voice, instructions)
+                data = await generate_tts(text, voice, instructions, language_code=game.languageCode)
                 digest = hashlib.sha256(f"{npc.id}:{voice}:{instructions}:{text}".encode()).hexdigest()[:16]
                 return save_asset(f"games/{game.id}/audio/{kind}_{digest}.mp3", data)
             except Exception as e:
@@ -239,9 +237,16 @@ async def _run_tts(game: Game) -> None:
     assert bible
     _set_stage(game, "tts", "running")
 
+    utility_copy = await translate_map(
+        {
+            "allHints": "You have all the hints! Where do you think Mama went?",
+            "mamaNotHere": "Mama is not here.",
+        },
+        target_language_code=game.languageCode,
+    )
     lines = [
         ("narrator.intro", bible.narratorIntro, NARRATOR_VOICE),
-        ("narrator.allHints", "You have all the hints! Where do you think Mama went?", NARRATOR_VOICE),
+        ("narrator.allHints", utility_copy["allHints"], NARRATOR_VOICE),
         ("narrator.reunion", bible.reunionLine, NARRATOR_VOICE),
     ]
     for i, npc in enumerate(bible.npcs):
@@ -254,7 +259,7 @@ async def _run_tts(game: Game) -> None:
         if not building.isEnterable:
             lines.append((
                 f"building_{building.id}.look",
-                f"{building.name}. {building.exteriorDescription} Mama is not here.",
+                f"{building.name}. {building.exteriorDescription} {utility_copy['mamaNotHere']}",
                 NARRATOR_VOICE,
                 DEFAULT_TTS_INSTRUCTIONS,
             ))
@@ -268,7 +273,7 @@ async def _run_tts(game: Game) -> None:
 
     async def do_tts(key, text, voice, instructions):
         try:
-            data = await generate_tts(text, voice, instructions)
+            data = await generate_tts(text, voice, instructions, language_code=game.languageCode)
             url = save_asset(f"games/{game.id}/audio/{key}.mp3", data)
             game.assets.audio[key] = url
             set_game(game)

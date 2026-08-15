@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { Game } from '@shared/schema'
 import { HintTracker } from './HintTracker'
+import { useI18n } from '../i18n/context'
+import { useVoiceInput } from '../game/voiceInput'
 
 interface Props {
   game: Game
@@ -9,8 +11,18 @@ interface Props {
 }
 
 export function LocationPicker({ game, collectedHintIds, onSolved }: Props) {
+  const { languageCode, t } = useI18n()
   const [nudge, setNudge] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
+  const voice = useVoiceInput(languageCode, transcript => {
+    const folded = transcript.toLocaleLowerCase()
+    const location = game.bible?.candidateLocations.find(candidate =>
+      folded.includes(candidate.name.toLocaleLowerCase())
+      || candidate.name.toLocaleLowerCase().includes(folded)
+    )
+    if (location) pick(location.id)
+    else setNudge(t('location.voiceRetry'))
+  })
 
   if (!game.bible) return null
 
@@ -26,7 +38,7 @@ export function LocationPicker({ game, collectedHintIds, onSolved }: Props) {
     if (data.correct) {
       onSolved()
     } else {
-      setNudge(data.nudge ?? 'Hmm, think about all three hints!')
+      setNudge(data.nudge ?? t('location.nudge'))
       setSelected(null)
     }
   }
@@ -34,8 +46,8 @@ export function LocationPicker({ game, collectedHintIds, onSolved }: Props) {
   return (
     <div className="location-picker-overlay" style={styles.overlay}>
       <div className="location-picker-card" style={styles.card}>
-        <h2 style={styles.title}>🔍 Where is Mama?</h2>
-        <p style={styles.subtitle}>Review the clues, then choose the only place left.</p>
+        <h2 style={styles.title}>🔍 {t('location.title')}</h2>
+        <p style={styles.subtitle}>{t('location.subtitle')}</p>
         <HintTracker
           game={game}
           collectedHintIds={collectedHintIds}
@@ -65,6 +77,19 @@ export function LocationPicker({ game, collectedHintIds, onSolved }: Props) {
             })()
           ))}
         </div>
+        <button
+          type="button"
+          style={{ ...styles.voiceBtn, ...(voice.state === 'recording' ? styles.voiceBtnRecording : {}) }}
+          onClick={voice.toggle}
+          disabled={voice.state === 'processing' || voice.state === 'requesting'}
+        >
+          {voice.state === 'recording'
+            ? `🔴 ${t('voice.listening')}`
+            : voice.state === 'processing' || voice.state === 'requesting'
+              ? `✨ ${t('voice.processing')}`
+              : `🎙️ ${t('location.sayAnswer')}`}
+        </button>
+        {voice.error && <p style={styles.nudge}>{t('location.voiceRetry')}</p>}
         {nudge && <p style={styles.nudge}>{nudge}</p>}
       </div>
     </div>
@@ -119,4 +144,9 @@ const styles: Record<string, React.CSSProperties> = {
   emoji: { fontSize: 22 },
   locName: { lineHeight: 1.3 },
   nudge: { marginTop: 20, color: '#e07b54', fontWeight: 600, fontSize: 15 },
+  voiceBtn: {
+    marginTop: 16, border: 0, borderRadius: 99, padding: '11px 16px',
+    background: '#fff0d6', color: '#81502d', fontWeight: 850, cursor: 'pointer',
+  },
+  voiceBtnRecording: { background: '#e4574e', color: 'white' },
 }

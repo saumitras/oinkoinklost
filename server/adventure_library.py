@@ -86,6 +86,7 @@ def summarize_adventure(game: Game) -> dict:
         "reunionPhotoUrl": game.assets.reunionPhotoUrl,
         "createdAt": game.createdAt,
         "emoji": _emoji(game),
+        "languageCode": game.languageCode,
     }
 
 

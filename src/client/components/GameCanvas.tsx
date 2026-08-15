@@ -13,9 +13,8 @@ import { IntroOverlay } from './IntroOverlay'
 import { QuestBrief } from './QuestBrief'
 import {
   curatedAdventure,
-  isCuratedAdventure,
-  questForNpc,
-  questForRoom,
+  localizeQuests,
+  questsForGame,
   type AdventureQuest,
 } from '../game/adventureQuests'
 import {
@@ -24,6 +23,7 @@ import {
   isMuted,
   playAudio,
   playChime,
+  playGameSpeech,
   setBackgroundMusicLevel,
   setBackgroundMusicMuted,
   setMuted,
@@ -32,6 +32,7 @@ import {
   stopAudio,
   stopBackgroundMusic,
 } from '../game/audio'
+import { useI18n } from '../i18n/context'
 
 interface Props {
   game: Game
@@ -40,6 +41,7 @@ interface Props {
 }
 
 export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) {
+  const { languageCode, t } = useI18n()
   const containerRef = useRef<HTMLDivElement>(null)
   const store = useGameStore()
   const [dialogue, setDialogue] = useState<{ npcId: string; sessionId: string } | null>(null)
@@ -57,6 +59,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
   const [questProgress, setQuestProgress] = useState<Record<string, 'searching' | 'completed'>>({})
   const [questBrief, setQuestBrief] = useState<AdventureQuest | null>(null)
   const [questMistakes, setQuestMistakes] = useState<Record<string, number>>({})
+  const [questCatalog, setQuestCatalog] = useState<AdventureQuest[]>(() => questsForGame(game))
   const loadedStreetUrl = useRef(game.assets.streetUrl)
   const isTouch = useRef(
     typeof window !== 'undefined' && (
@@ -65,6 +68,26 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
       || window.innerWidth <= 700
     )
   ).current
+
+  useEffect(() => {
+    const source = questsForGame(game)
+    setQuestCatalog(source)
+    if (!microQuestsEnabled || languageCode === 'en-IN' || !source.length) return
+    let cancelled = false
+    localizeQuests(source, languageCode).then(localized => {
+      if (!cancelled) setQuestCatalog(localized)
+    })
+    return () => { cancelled = true }
+  }, [game.id, languageCode, microQuestsEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const findQuestForNpc = useCallback(
+    (npcId: string) => questCatalog.find(quest => quest.npcId === npcId),
+    [questCatalog],
+  )
+  const findQuestForRoom = useCallback(
+    (roomId: string) => questCatalog.find(quest => quest.roomId === roomId),
+    [questCatalog],
+  )
 
   function showToast(msg: string, ms = 2600) {
     const version = ++toastVersion.current
@@ -124,16 +147,16 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
     if (!store.screen.startsWith('room_')) return
     const activeRoomId = store.screen.slice(5)
     const current = useGameStore.getState().game ?? game
-    const quest = questForRoom(current, activeRoomId)
+    const quest = findQuestForRoom(activeRoomId)
     if (!quest || questProgress[quest.npcId] !== 'searching') return
     const timer = window.setTimeout(() => {
       if (useGameStore.getState().screen !== `room_${activeRoomId}`) return
-      const reminder = `Piglet wonders: ${quest.searchPrompt}`
+      const reminder = `${t('game.pigletWonders')} ${quest.searchPrompt}`
       showToast(`💭 ${reminder}`, 7000)
-      speakText(reminder)
+      playGameSpeech(current.id, reminder, languageCode).catch(() => speakText(reminder))
     }, 11000)
     return () => window.clearTimeout(timer)
-  }, [store.screen, questProgress, game, microQuestsEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [store.screen, questProgress, game, microQuestsEnabled, findQuestForRoom]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleInteract = useCallback(() => {
     const s = useGameStore.getState()
@@ -143,7 +166,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
 
     if (nearby.kind === 'quest') {
       const activeRoomId = s.screen.startsWith('room_') ? s.screen.slice(5) : ''
-      const quest = questForRoom(currentGame, activeRoomId)
+      const quest = findQuestForRoom(activeRoomId)
       const object = quest?.objects.find(candidate => candidate.id === nearby.objectId)
       if (!quest || !object || questProgress[quest.npcId] !== 'searching') return
       stopAudio()
@@ -152,16 +175,18 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
         showRoomQuestCompletion(object)
         playChime()
         showToast(`🌟 ${quest.success}`, 9000)
-        speakText(quest.success)
+        playGameSpeech(currentGame.id, quest.success, languageCode).catch(() => speakText(quest.success))
       } else {
         const mistakes = (questMistakes[quest.npcId] ?? 0) + 1
         setQuestMistakes(current => ({ ...current, [quest.npcId]: mistakes }))
         const correctObject = quest.objects.find(candidate => candidate.correct)!
         const strongerHint = mistakes >= 2
-          ? `${object.response} The right object is glowing near the ${correctObject.x < 512 ? 'left' : 'right'} side of the room.`
+          ? `${object.response} ${t('quest.rightObject', {
+            side: correctObject.x < 512 ? t('quest.left') : t('quest.right'),
+          })}`
           : object.response
         showToast(`🤔 ${strongerHint}`, 7000)
-        speakText(strongerHint)
+        playGameSpeech(currentGame.id, strongerHint, languageCode).catch(() => speakText(strongerHint))
       }
       return
     }
@@ -190,13 +215,13 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
         if (!room?.imageUrl || !room.annotation) {
           const roomStage = currentGame.stages[`room_${building.id}`]
           showToast(roomStage === 'failed'
-            ? '⚠️ This room could not finish painting. Try another house or start a new adventure.'
-            : '🎨 Still painting inside! Try Go Inside again in a moment…', 5000)
+            ? `⚠️ ${t('game.roomUnavailableHelp')}`
+            : `🎨 ${t('game.roomPaintingHelp')}`, 5000)
           return
         }
         s.setScreen(`room_${building.id}`)
         loadRoomScene(currentGame, building.id).then(() => {
-          const quest = microQuestsEnabled ? questForRoom(currentGame, building.id) : undefined
+          const quest = microQuestsEnabled ? findQuestForRoom(building.id) : undefined
           if (quest && questProgress[quest.npcId] === 'searching') {
             setRoomQuestObjects(quest.objects)
           } else if (quest && questProgress[quest.npcId] === 'completed') {
@@ -208,12 +233,12 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
       } else {
         const description = building.exteriorDescription
           || `${building.name} is part of this curious little world.`
-        const lookResult = `${building.name}. ${description} Mama is not here.`
-        const toastId = showToast(`👀 ${building.name}: ${description} Mama is not here.`, 20000)
+        const lookResult = `${building.name}. ${description} ${t('game.mamaNotHere')}`
+        const toastId = showToast(`👀 ${building.name}: ${description} ${t('game.mamaNotHere')}`, 20000)
         const lookAudio = currentGame.assets.audio[`building_${building.id}.look`]
         const narration = lookAudio
           ? playAudio(lookAudio).catch(() => speakText(lookResult))
-          : speakText(lookResult)
+          : playGameSpeech(currentGame.id, lookResult, languageCode).catch(() => speakText(lookResult))
         narration.finally(() => hideToast(toastId))
       }
       return
@@ -227,7 +252,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
     if (nearby.kind === 'exit') {
       returnToStreet()
     }
-  }, [dialogue, game, questProgress, questMistakes, microQuestsEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dialogue, game, questProgress, questMistakes, microQuestsEnabled, findQuestForRoom]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keyboard: E/Space/Enter to interact, Escape to leave room
   useEffect(() => {
@@ -305,7 +330,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
     setDialogue(null)
     s.setScreen('street')
     loadStreetScene(s.game ?? game)
-    showToast('💛 Correct! Follow the glowing MAMA marker!', 5200)
+    showToast(`💛 ${t('game.correctFollow')}`, 5200)
   }
 
   function skipClueHunt() {
@@ -325,9 +350,9 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
     s.setScreen('street')
     loadStreetScene(current)
     playChime()
-    const message = 'All three clues are collected! Follow the glowing MAMA marker.'
+    const message = t('game.allCluesFollow')
     showToast(`💛 ${message}`, 6500)
-    speakText(message)
+    playGameSpeech(current.id, message, languageCode).catch(() => speakText(message))
   }
 
   const currentGame = store.game ?? game
@@ -393,12 +418,26 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
   const roomIsPreparing = Boolean(
     nearbyBuilding?.isEnterable && (!nearbyRoom?.imageUrl || !nearbyRoom.annotation),
   )
+  const nearbyNpcId = store.nearby?.kind === 'npc' ? store.nearby.npcId : null
+  const nearbyNpc = nearbyNpcId
+    ? currentGame.bible?.npcs.find(npc => npc.id === nearbyNpcId)
+    : undefined
+  const nearbyLabel = store.nearby?.kind === 'door'
+    ? store.nearby.isMama && store.solved
+      ? `💛 ${t('game.findMama')}`
+      : store.nearby.enterable
+        ? `🚪 ${t('controls.goInside')}`
+        : `👀 ${t('controls.look')}`
+    : store.nearby?.kind === 'npc'
+      ? `💬 ${t('game.talkTo', { name: nearbyNpc?.name ?? '' })}`
+      : store.nearby?.kind === 'exit'
+        ? `🚪 ${t('game.goOutside')}`
+        : store.nearby?.label
   const actionLabel = roomIsPreparing
     ? nearbyRoomStage === 'failed'
-      ? '⚠️ Room unavailable'
-      : '🎨 Painting room…'
-    : store.nearby?.label
-  const curatedWorld = isCuratedAdventure(currentGame)
+      ? `⚠️ ${t('game.roomUnavailable')}`
+      : `🎨 ${t('game.roomPainting')}`
+    : nearbyLabel
   const adventureTheme = curatedAdventure(currentGame)
 
   function beginQuest(quest: AdventureQuest) {
@@ -406,13 +445,13 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
     setQuestProgress(progress => ({ ...progress, [quest.npcId]: 'searching' }))
     setRoomQuestObjects(quest.objects)
     showToast(`🔎 ${quest.searchPrompt}`, 7000)
-    speakText(quest.searchPrompt)
+    playGameSpeech(currentGame.id, quest.searchPrompt, languageCode).catch(() => speakText(quest.searchPrompt))
   }
 
   function interceptMamaQuestion(npcId: string, hintId: string): boolean {
     if (!microQuestsEnabled) return false
     if (store.collectedHintIds.includes(hintId)) return false
-    const quest = questForNpc(currentGame, npcId)
+    const quest = findQuestForNpc(npcId)
     if (!quest || questProgress[npcId] === 'completed') return false
     setQuestBrief(quest)
     return true
@@ -428,26 +467,26 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
         <button
           style={styles.iconBtn}
           onClick={goHome}
-          aria-label="Return to the adventure library"
-          title="Home"
+          aria-label={t('controls.home')}
+          title={t('controls.home')}
         >
           <span aria-hidden="true">🏠</span>
         </button>
         <button
           style={{ ...styles.iconBtn, ...(showAudioPanel ? styles.iconBtnActive : {}) }}
           onClick={() => setShowAudioPanel(show => !show)}
-          aria-label="Open audio controls"
+          aria-label={t('controls.sound')}
           aria-expanded={showAudioPanel}
-          title="Audio controls"
+          title={t('controls.sound')}
         >
           <SoundIcon muted={muted && musicMuted} />
         </button>
       </div>
 
       {showAudioPanel && (
-        <div className="game-audio-panel" style={styles.audioPanel} role="dialog" aria-label="Audio controls">
+        <div className="game-audio-panel" style={styles.audioPanel} role="dialog" aria-label={t('controls.sound')}>
           <div style={styles.audioPanelHeader}>
-            <span>Audio</span>
+            <span>{t('audio.title')}</span>
             <button
               style={styles.audioCloseBtn}
               onClick={() => setShowAudioPanel(false)}
@@ -458,26 +497,26 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
           <button style={styles.audioToggleRow} onClick={toggleGameSound} aria-pressed={!muted}>
             <span style={styles.audioRowLabel}>
               <SoundIcon muted={muted} />
-              <span style={styles.audioRowText}><strong>Game sound</strong><small>Voices &amp; effects</small></span>
+              <span style={styles.audioRowText}><strong>{t('audio.gameSound')}</strong><small>{t('audio.voicesEffects')}</small></span>
             </span>
             <span style={{ ...styles.togglePill, ...(!muted ? styles.togglePillOn : {}) }}>
-              {!muted ? 'On' : 'Muted'}
+              {!muted ? t('common.on') : t('audio.muted')}
             </span>
           </button>
 
           <button style={styles.audioToggleRow} onClick={toggleBackgroundMusic} aria-pressed={!musicMuted}>
             <span style={styles.audioRowLabel}>
               <span style={styles.musicNote} aria-hidden="true">♪</span>
-              <span style={styles.audioRowText}><strong>Background music</strong><small>Adventure theme</small></span>
+              <span style={styles.audioRowText}><strong>{t('audio.music')}</strong><small>{t('audio.theme')}</small></span>
             </span>
             <span style={{ ...styles.togglePill, ...(!musicMuted ? styles.togglePillOn : {}) }}>
-              {!musicMuted ? 'On' : 'Muted'}
+              {!musicMuted ? t('common.on') : t('audio.muted')}
             </span>
           </button>
 
           <label style={{ ...styles.volumeControl, ...(musicMuted ? styles.volumeControlDisabled : {}) }}>
             <span style={styles.volumeLabel}>
-              <span>Music level</span><output>{musicLevel}%</output>
+              <span>{t('audio.level')}</span><output>{musicLevel}%</output>
             </span>
             <input
               type="range"
@@ -487,7 +526,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
               value={musicLevel}
               onInput={changeMusicLevel}
               disabled={musicMuted}
-              aria-label="Background music volume"
+              aria-label={t('audio.level')}
               style={styles.volumeSlider}
             />
           </label>
@@ -499,7 +538,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
           className="game-exit-button"
           style={{ ...styles.exitBtn, top: showAudioPanel ? 286 : 68 }}
           onClick={returnToStreet}
-        >← Leave house</button>
+        >← {t('controls.leaveRoom')}</button>
       )}
 
       {!showIntro && !store.showPicker && (
@@ -513,17 +552,17 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
           ...(isTouch ? styles.controlsLegendTouch : {}),
           ...(isTouch && showAudioPanel ? { top: 334 } : {}),
         }} aria-label="Game controls">
-          <div style={styles.controlsTitle}>CONTROLS</div>
+          <div style={styles.controlsTitle}>{t('controls.title')}</div>
           {isTouch ? (
             <>
-              <div style={styles.controlRow}><span style={styles.controlKey}>Tap ground</span><span>Move</span></div>
-              <div style={styles.controlRow}><span style={styles.controlKey}>Tap</span><span>Look · Go Inside · Talk</span></div>
+              <div style={styles.controlRow}><span style={styles.controlKey}>{t('controls.tapGround')}</span><span>{t('controls.move')}</span></div>
+              <div style={styles.controlRow}><span style={styles.controlKey}>{t('controls.tap')}</span><span>{t('controls.actions')}</span></div>
             </>
           ) : (
             <>
-              <div style={styles.controlRow}><span style={styles.controlKey}>WASD / Arrows</span><span>Move</span></div>
-              <div style={styles.controlRow}><span style={styles.controlKey}>E / Space</span><span>Look · Go Inside · Talk</span></div>
-              <div style={styles.controlRow}><span style={styles.controlKey}>Esc</span><span>Leave</span></div>
+              <div style={styles.controlRow}><span style={styles.controlKey}>WASD / ←↑↓→</span><span>{t('controls.move')}</span></div>
+              <div style={styles.controlRow}><span style={styles.controlKey}>E / Space</span><span>{t('controls.actions')}</span></div>
+              <div style={styles.controlRow}><span style={styles.controlKey}>Esc</span><span>{t('common.leave')}</span></div>
             </>
           )}
         </div>
@@ -543,15 +582,15 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
           className="game-skip-button"
           style={styles.skipBtn}
           onClick={skipClueHunt}
-          aria-label="I'm too tired to find clues. Find Mama for me"
-          title="Collect every clue and reveal Mama's location"
+          aria-label={t('shortcut.action')}
+          title={t('shortcut.action')}
         >
-          💤 Too tired? Find Mama for me
+          💤 {t('shortcut.action')}
         </button>
       )}
 
       {store.solved && !store.showReunion && !store.showPicker && (
-        <div className="game-mama-mission" style={styles.mamaMission}>💛 Follow the glowing MAMA marker and choose Find Mama!</div>
+        <div className="game-mama-mission" style={styles.mamaMission}>💛 {t('game.followMama')}</div>
       )}
 
       {dialogue && activeNpc && activeHint && (
@@ -564,12 +603,13 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
           onClueGranted={onConversationClue}
           onClose={onDialogueClose}
           onAskMama={() => interceptMamaQuestion(activeNpc.id, activeHint.id)}
-          generatedPigletVoice={curatedWorld}
+          generatedPigletVoice
         />
       )}
 
       {questBrief && (
         <QuestBrief
+          gameId={currentGame.id}
           quest={questBrief}
           onStart={() => beginQuest(questBrief)}
           onLater={() => setQuestBrief(null)}
@@ -590,7 +630,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
           onNewAdventure={onNewAdventure}
           accomplishments={Object.entries(questProgress)
             .filter(([, status]) => status === 'completed')
-            .map(([npcId]) => questForNpc(currentGame, npcId)?.title)
+            .map(([npcId]) => findQuestForNpc(npcId)?.title)
             .filter((title): title is string => Boolean(title))}
         />
       )}
@@ -603,7 +643,7 @@ export function GameCanvas({ game, microQuestsEnabled, onNewAdventure }: Props) 
       {/* Re-open picker if dismissed */}
       {allHintsCollected && !store.solved && !store.showPicker && !store.showReunion && !dialogue && (
         <button className="game-picker-button" style={styles.pickerBtn} onClick={() => store.setShowPicker(true)}>
-          🔍 Where is Mama?
+          🔍 {t('location.title')}
         </button>
       )}
     </div>
